@@ -1,0 +1,1995 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>JAPAN REBOOT SIMULATION</title>
+<style>
+  :root{
+    --neon:#00d4ff;
+    --neon2:#ff2bd1;
+    --warn:#ffcc00;
+    --danger:#ff2244;
+    --safe:#39ff88;
+    --bg:#000000;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:#e8f7ff;font-family:'Courier New',monospace;overflow:hidden;width:100%;height:100%}
+  body{display:flex;align-items:center;justify-content:center}
+  #scaler{
+    transform-origin: center center;
+    width:540px;height:960px;position:relative;
+  }
+  #stage{
+    position:relative;width:540px;height:960px;
+    background:radial-gradient(ellipse at center, #021018 0%, #000 70%);
+    overflow:hidden;border:1px solid #0a3340;
+  }
+  svg{position:absolute;inset:0;width:100%;height:100%}
+  .land-old{fill:#02161e;stroke:#0c4055;stroke-width:.6}
+  .land-new{fill:#050a0e;stroke:#1a3344;stroke-width:.5;opacity:.55}
+  .land-outline{fill:none;stroke:#3aa4c4;stroke-width:1.3;opacity:.85;filter:url(#glowSoft);pointer-events:none}
+  .old-net{stroke:#39ff88;stroke-width:.9;fill:none;opacity:.95;filter:url(#glowSoft);stroke-linecap:round}
+  .old-city{fill:#39ff88;filter:url(#glowMid)}
+  .old-capital{fill:var(--warn);filter:url(#glowMid)}
+  .candidate{fill:#22b8d8;opacity:.85;filter:url(#glowSoft)}
+  .cand-label{fill:#cfe;font-size:8px;opacity:.9;pointer-events:none}
+  .cand-score-good{fill:var(--safe);filter:url(#glowMid)}
+  .cand-score-bad{fill:var(--danger);filter:url(#glowSoft)}
+  .capital{fill:var(--warn);filter:url(#glowSoft)}
+  .target-pulse{fill:none;stroke:#fff;stroke-width:1.2;filter:url(#glowMid)}
+  .city{fill:var(--neon);filter:url(#glowMid)}
+  .city.tier1{fill:#fff;filter:url(#glowStrong)}
+  .city.tier2{fill:#00d4ff;filter:url(#glowMid)}
+  .city.tier3{fill:#5fa8c4;filter:url(#glowSoft);opacity:.85}
+  .city-2nd{fill:var(--neon2);filter:url(#glowSoft);opacity:.85}
+  .edge{stroke:var(--neon);stroke-width:2.2;fill:none;filter:url(#glowMid);stroke-linecap:round;stroke-linejoin:round}
+  .edge-detour{stroke:var(--neon2);stroke-width:2.2;fill:none;filter:url(#glowMid);stroke-linecap:round;stroke-linejoin:round}
+  .edge-marine{stroke:#7ce7ff;stroke-width:1.8;fill:none;filter:url(#glowSoft);stroke-linecap:round;opacity:.9;stroke-dasharray:6 4}
+  .edge-air{stroke:#c8a4ff;stroke-width:1.6;fill:none;filter:url(#glowSoft);stroke-linecap:round;opacity:.9;stroke-dasharray:2 5}
+  .edge-old{stroke:#ff8c1a;stroke-width:1.6;fill:none;filter:url(#glowMid);opacity:.95;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:5 3}
+  .crosshair{stroke:var(--warn);stroke-width:1;fill:none;filter:url(#glowMid)}
+
+  /* HUD */
+  #hud-top{
+    position:absolute;left:14px;right:14px;top:10px;display:flex;justify-content:space-between;
+    font-size:12px;letter-spacing:.08em;z-index:5;color:var(--neon);
+    text-shadow:0 0 4px var(--neon);
+  }
+  #hud-top .blink{animation:blink 1s steps(2) infinite}
+  @keyframes blink{50%{opacity:.25}}
+
+  #phaseTag{
+    position:absolute;left:14px;top:30px;z-index:6;
+    font-size:16px;font-weight:bold;
+    color:var(--warn);text-shadow:0 0 12px var(--warn),0 0 4px #fff;
+    letter-spacing:.16em;
+    padding:3px 9px;
+    background:rgba(0,8,14,.6);
+    border-left:3px solid var(--warn);
+    box-shadow:0 0 10px rgba(255,204,0,.35);
+    transform-origin:left center;
+  }
+  @keyframes phasePulse{
+    0%  {transform:scale(1)   skewX(0);   box-shadow:0 0 10px rgba(255,204,0,.35);filter:hue-rotate(0)}
+    20% {transform:scale(1.12) skewX(-3deg);box-shadow:0 0 30px rgba(255,204,0,.95);filter:hue-rotate(-12deg)}
+    100%{transform:scale(1)   skewX(0);   box-shadow:0 0 10px rgba(255,204,0,.35);filter:hue-rotate(0)}
+  }
+  #particles{position:absolute;inset:0;pointer-events:none;z-index:14;mix-blend-mode:screen;opacity:.55}
+  /* Stage vignette + persistent scanlines for cinematic feel */
+  #stage::after{
+    content:"";position:absolute;inset:0;pointer-events:none;z-index:13;
+    background:
+      radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55) 100%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 3px);
+    mix-blend-mode:multiply;
+  }
+  #capitalBadge{
+    position:absolute;left:14px;top:74px;z-index:8;
+    background:rgba(0,16,24,.85);border:1px solid var(--warn);
+    padding:6px 10px;font-size:12px;color:var(--warn);
+    text-shadow:0 0 8px var(--warn);letter-spacing:.05em;
+    box-shadow:0 0 10px rgba(255,204,0,.3);
+    opacity:0;line-height:1.3;
+  }
+  #capitalBadge b{font-size:18px;color:#fff;text-shadow:0 0 8px var(--warn)}
+  #habBadge{
+    position:absolute;left:14px;top:140px;z-index:8;
+    background:rgba(0,16,24,.85);border:1px solid var(--warn);
+    padding:6px 9px;font-size:10px;color:#cfe;
+    box-shadow:0 0 10px rgba(255,204,0,.25);
+    letter-spacing:.04em;opacity:0;line-height:1.5;max-width:200px;
+  }
+  #habBadge h5{font-size:11px;color:var(--warn);text-shadow:0 0 6px var(--warn);margin-bottom:3px;letter-spacing:.1em}
+  #habBadge .dot{display:inline-block;width:7px;height:7px;border-radius:50%;vertical-align:middle;margin-right:4px}
+  #habBadge .g{background:#39ff88;box-shadow:0 0 5px #39ff88}
+  #habBadge .y{background:#ffcc00;box-shadow:0 0 5px #ffcc00}
+  #habBadge .r{background:#ff2244;box-shadow:0 0 5px #ff2244}
+  #habBadge .formula{font-size:9px;color:#9be9ff;margin-top:3px;line-height:1.4}
+  #legend{
+    position:absolute;left:14px;top:275px;z-index:8;
+    background:rgba(0,16,24,.8);border:1px solid #0a4a60;
+    padding:5px 8px;font-size:9px;color:#9be9ff;letter-spacing:.04em;
+    line-height:1.6;opacity:0;
+  }
+  #legend .sw{display:inline-block;width:14px;height:2px;vertical-align:middle;margin-right:5px;border-radius:1px}
+  #legend .c1{background:#00d4ff;box-shadow:0 0 4px #00d4ff}
+  #legend .c2{background:#ff2bd1;box-shadow:0 0 4px #ff2bd1}
+  #legend .c3{background:#7ce7ff;box-shadow:0 0 4px #7ce7ff;background-image:linear-gradient(90deg,#7ce7ff 60%,transparent 60%);background-size:6px 100%}
+  #legend .c4{background:#c8a4ff;box-shadow:0 0 4px #c8a4ff;background-image:linear-gradient(90deg,#c8a4ff 40%,transparent 40%);background-size:5px 100%}
+  #legend .c5{background:#ff8c1a;box-shadow:0 0 4px #ff8c1a;background-image:linear-gradient(90deg,#ff8c1a 60%,transparent 60%);background-size:7px 100%}
+
+  #title{
+    position:absolute;left:0;right:0;top:54px;text-align:center;z-index:6;
+    font-size:30px;font-weight:bold;color:#fff;
+    text-shadow:0 0 12px var(--neon),0 0 4px #fff;
+    letter-spacing:.04em;opacity:0;
+  }
+  #subtitle{
+    position:absolute;left:0;right:0;top:94px;text-align:center;z-index:6;
+    font-size:15px;color:var(--neon);
+    text-shadow:0 0 8px var(--neon);letter-spacing:.08em;opacity:0;
+  }
+
+  #log{
+    position:absolute;left:14px;right:14px;bottom:118px;z-index:6;
+    font-size:10px;line-height:1.4;color:#9be9ff;
+    text-shadow:0 0 4px var(--neon);
+    max-height:70px;overflow:hidden;
+    background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,30,40,.35) 30%, rgba(0,30,40,.35) 100%);
+    border-left:2px solid var(--neon);padding:4px 8px;
+  }
+  /* Narration subtitle overlay */
+  #narration{
+    position:absolute;left:10px;right:10px;bottom:200px;z-index:7;
+    padding:10px 14px;font-size:17px;font-weight:bold;color:#fff;
+    background:linear-gradient(90deg,rgba(0,8,14,0) 0%,rgba(0,8,14,.78) 15%,rgba(0,8,14,.78) 85%,rgba(0,8,14,0) 100%);
+    border-top:1px solid rgba(255,204,0,.6);border-bottom:1px solid rgba(255,204,0,.6);
+    text-shadow:0 0 10px #ffcc00,0 0 4px #000;
+    letter-spacing:.04em;line-height:1.4;text-align:center;
+    min-height:54px;display:flex;align-items:center;justify-content:center;
+    opacity:0;transition:opacity 300ms ease;
+  }
+  #narration::before{content:'▶ ';color:#ffcc00;text-shadow:0 0 10px #ffcc00;margin-right:4px}
+  #narration .em{color:#ffcc00;text-shadow:0 0 10px #ffcc00}
+  #narration .grn{color:#39ff88;text-shadow:0 0 10px #39ff88}
+  #narration .red{color:#ff5566;text-shadow:0 0 10px #ff5566}
+  #log .line{opacity:.92;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #log .em{color:var(--warn);text-shadow:0 0 6px var(--warn)}
+  #log .ok{color:var(--safe);text-shadow:0 0 6px var(--safe)}
+  #log .bad{color:var(--danger);text-shadow:0 0 6px var(--danger)}
+
+  #stats{
+    position:absolute;left:14px;right:14px;bottom:14px;z-index:6;
+    display:grid;grid-template-columns:1fr 1fr;gap:6px;
+  }
+  .stat{
+    border:1px solid #0a4a60;background:rgba(0,16,24,.7);
+    padding:6px 8px;border-radius:4px;
+    box-shadow:inset 0 0 12px rgba(0,212,255,.08);
+  }
+  .stat .k{font-size:9px;color:#67c9e0;letter-spacing:.15em}
+  .stat .v{font-size:20px;color:var(--neon);text-shadow:0 0 8px var(--neon);font-weight:bold}
+  .stat .u{font-size:10px;color:#9be9ff;margin-left:3px}
+
+  /* Capital scoring panel - decision matrix (LARGE) */
+  #scorePanel{
+    position:absolute;left:8px;right:8px;top:100px;z-index:7;
+    background:rgba(0,8,14,.96);border:2px solid var(--neon);
+    box-shadow:0 0 24px rgba(0,212,255,.5),inset 0 0 12px rgba(0,212,255,.1);
+    padding:14px 14px 12px;color:#cfe;opacity:0;
+    letter-spacing:.02em;font-family:'Courier New',monospace;
+  }
+  #scorePanel h4{font-size:16px;color:var(--warn);text-shadow:0 0 10px var(--warn);margin-bottom:10px;letter-spacing:.12em;text-align:center}
+  #scorePanel table{width:100%;border-collapse:collapse;font-size:15px}
+  #scorePanel th{color:#67c9e0;font-weight:normal;font-size:12px;letter-spacing:.06em;padding:5px 4px;border-bottom:1px solid #1a8fb8;text-align:right}
+  #scorePanel th.l{text-align:left}
+  #scorePanel td{padding:5px 4px;color:#9be9ff;text-align:right;font-variant-numeric:tabular-nums;font-size:15px;border-bottom:1px solid #062533}
+  #scorePanel td.l{text-align:left;color:#fff;font-size:14px}
+  #scorePanel tr.top td{color:var(--safe);text-shadow:0 0 8px var(--safe);font-weight:bold;background:rgba(57,255,136,.12);font-size:17px}
+  #scorePanel tr.top td.l::before{content:"▶ "}
+  #scorePanel td.hi{color:var(--safe);text-shadow:0 0 4px var(--safe)}
+  #scorePanel td.lo{color:var(--danger);text-shadow:0 0 4px var(--danger)}
+  #scorePanel .weights{margin-top:8px;font-size:11px;color:#67c9e0;text-align:center;letter-spacing:.05em}
+
+  /* Reason badges next to capital */
+  #reason{
+    position:absolute;left:14px;top:160px;z-index:7;width:260px;
+    background:rgba(0,8,14,.85);border:1px solid var(--neon);
+    padding:8px 10px;font-size:11px;color:#cfe;opacity:0;
+    box-shadow:0 0 14px rgba(0,212,255,.3);letter-spacing:.04em;
+  }
+  #reason h4{color:var(--neon);font-size:12px;text-shadow:0 0 8px var(--neon);margin-bottom:4px}
+  #reason .b{margin:2px 0;display:flex;justify-content:space-between}
+  #reason .b span:last-child{color:var(--safe);text-shadow:0 0 4px var(--safe)}
+
+  /* Dilemma popup (positioned over Pacific, below Tokyo, so map stays visible) */
+  #dilemma{
+    position:absolute;left:66%;top:62%;transform:translate(-50%,-50%);
+    background:rgba(0,8,16,.95);border:1px solid var(--warn);
+    padding:6px 9px;font-size:10px;color:#fff;
+    box-shadow:0 0 14px rgba(255,204,0,.45),inset 0 0 10px rgba(255,204,0,.1);
+    z-index:9;opacity:0;letter-spacing:.03em;min-width:200px;
+  }
+  #dilemma .head{font-size:10px;color:var(--warn);text-shadow:0 0 6px var(--warn);text-align:center;margin-bottom:4px;letter-spacing:.08em;font-weight:bold}
+  #dilemma .opts{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:4px 0}
+  #dilemma .opt{border:1px solid #333;padding:3px 5px;background:rgba(20,20,28,.6);text-align:center}
+  #dilemma .opt .ttl{font-size:8px;letter-spacing:.03em;margin-bottom:2px}
+  #dilemma .opt .cost{font-size:12px;font-weight:bold;font-variant-numeric:tabular-nums}
+  #dilemma .opt .desc{font-size:7px;color:#9be;margin-top:2px;line-height:1.2}
+  #dilemma .opt.bad{border-color:var(--danger);background:rgba(60,8,16,.5)}
+  #dilemma .opt.bad .ttl,#dilemma .opt.bad .cost{color:var(--danger);text-shadow:0 0 6px var(--danger)}
+  #dilemma .opt.good{border-color:var(--safe);background:rgba(8,40,24,.5);box-shadow:0 0 16px rgba(57,255,136,.3)}
+  #dilemma .opt.good .ttl,#dilemma .opt.good .cost{color:var(--safe);text-shadow:0 0 8px var(--safe)}
+  #dilemma .pick{margin-top:4px;font-size:9px;color:var(--warn);text-shadow:0 0 6px var(--warn);text-align:center;letter-spacing:.03em}
+  #dilemma .pick b{font-size:10px}
+
+  /* Glitch overlay */
+  #glitch{position:absolute;inset:0;z-index:10;pointer-events:none;opacity:0;
+    background:
+      repeating-linear-gradient(0deg, rgba(255,40,40,.18) 0 2px, transparent 2px 4px),
+      repeating-linear-gradient(90deg, rgba(0,212,255,.12) 0 1px, transparent 1px 6px);
+    mix-blend-mode:screen;
+  }
+  #blackout{position:absolute;inset:0;background:#000;z-index:9;opacity:0;pointer-events:none}
+
+  /* Final CTA overlay (centered, full-stage) */
+  #cta{
+    position:absolute;inset:0;z-index:30;opacity:0;
+    background:radial-gradient(ellipse at center, rgba(0,8,14,.85) 0%, rgba(0,0,0,.92) 80%);
+    display:flex;flex-direction:column;justify-content:center;align-items:center;
+    text-align:center;padding:24px;pointer-events:none;
+  }
+  #cta .ttl{
+    font-size:30px;font-weight:bold;color:#fff;
+    text-shadow:0 0 16px var(--neon),0 0 6px #fff;
+    letter-spacing:.06em;line-height:1.35;
+    animation:ctaIn 700ms cubic-bezier(.2,.9,.3,1.2) both;
+  }
+  #cta .ttl b{color:var(--warn);text-shadow:0 0 16px var(--warn),0 0 4px #fff}
+  #cta .q{
+    margin-top:22px;font-size:20px;color:var(--warn);
+    text-shadow:0 0 12px var(--warn);letter-spacing:.05em;line-height:1.5;
+    animation:ctaIn 700ms 350ms cubic-bezier(.2,.9,.3,1.2) both;
+  }
+  #cta .q small{font-size:14px;color:#9be9ff;text-shadow:0 0 6px var(--neon);display:block;margin-top:6px;letter-spacing:.04em}
+  @keyframes ctaIn{from{opacity:0;transform:translateY(20px) scale(.92);filter:blur(8px)}to{opacity:1;transform:none;filter:none}}
+
+  #redOverlay{position:absolute;inset:0;z-index:8;opacity:0;pointer-events:none;mix-blend-mode:screen}
+  #compare{
+    position:absolute;left:10px;right:10px;top:160px;z-index:11;
+    background:rgba(0,8,14,.96);border:2px solid var(--warn);
+    box-shadow:0 0 28px rgba(255,204,0,.55),inset 0 0 14px rgba(255,204,0,.1);
+    padding:16px 18px;font-size:16px;color:#cfe;opacity:0;
+    font-family:'Courier New',monospace;letter-spacing:.03em;
+  }
+  #compare h4{font-size:18px;color:var(--warn);text-shadow:0 0 12px var(--warn);text-align:center;margin-bottom:12px;letter-spacing:.12em;font-weight:bold}
+  #compare table{width:100%;border-collapse:collapse;font-size:18px}
+  #compare th{font-size:13px;color:#67c9e0;padding:7px 6px;border-bottom:1px solid #1a8fb8;font-weight:normal;text-align:right;letter-spacing:.06em}
+  #compare th.l{text-align:left}
+  #compare td{padding:8px 6px;text-align:right;font-variant-numeric:tabular-nums;border-bottom:1px solid #062533;font-size:18px}
+  #compare td.l{text-align:left;color:#fff;font-size:14px}
+  #compare .old{color:#ff8c1a;text-shadow:0 0 7px #ff8c1a;font-weight:bold}
+  #compare .new{color:var(--safe);text-shadow:0 0 8px var(--safe);font-weight:bold;font-size:20px}
+  #compare .delta{color:var(--warn);font-size:15px;text-shadow:0 0 6px var(--warn);font-weight:bold}
+  #summary{
+    position:absolute;left:8px;right:8px;top:80px;bottom:80px;z-index:13;
+    background:rgba(0,8,14,.97);border:2px solid var(--neon);
+    box-shadow:0 0 24px rgba(0,212,255,.4);
+    padding:8px 10px;color:#cfe;opacity:0;overflow:auto;
+    font-family:'Courier New',monospace;letter-spacing:.02em;
+  }
+  #summary h4{font-size:15px;color:var(--neon);text-shadow:0 0 10px var(--neon);text-align:center;margin-bottom:8px;letter-spacing:.1em}
+  #summary table{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed}
+  #summary col.cat{width:90px} #summary col.city{width:120px} #summary col.pop{width:60px} #summary col.note{width:auto}
+  #summary th{font-size:10px;color:#67c9e0;padding:4px 3px;border-bottom:1px solid #1a8fb8;font-weight:normal;text-align:left;letter-spacing:.03em;white-space:nowrap}
+  #summary td{padding:5px 3px;text-align:left;border-bottom:1px solid #062533;font-size:11px;color:#cfe;vertical-align:top;line-height:1.3;word-break:break-word}
+  #summary td.nowrap{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #summary td.n{font-variant-numeric:tabular-nums;text-align:right}
+  #summary tr.cap td{color:var(--warn);text-shadow:0 0 5px var(--warn);font-weight:bold}
+  #summary tr.t1 td{color:#fff;text-shadow:0 0 4px var(--neon)}
+  #summary tr.t2 td{color:#9be9ff}
+  #summary tr.t3 td{color:#7a98ad}
+  #summary tr.det td{color:var(--neon2);font-style:italic}
+  #summary .cat-cap{background:#ffcc00;color:#000;padding:1px 3px;border-radius:2px;font-size:9px}
+  #summary .cat-1{background:#00d4ff;color:#000;padding:1px 3px;border-radius:2px;font-size:9px}
+  #summary .cat-2{background:#5fa8c4;color:#000;padding:1px 3px;border-radius:2px;font-size:9px}
+  #summary .cat-3{background:#3a6478;color:#fff;padding:1px 3px;border-radius:2px;font-size:9px}
+  #summary .cat-det{background:#ff2bd1;color:#fff;padding:1px 3px;border-radius:2px;font-size:9px}
+
+  .countdown{
+    position:absolute;left:0;right:0;top:340px;text-align:center;z-index:11;
+    font-size:120px;font-weight:bold;color:var(--danger);
+    text-shadow:0 0 24px var(--danger);opacity:0;
+  }
+
+  /* Intro overlay (first 6 seconds) */
+  #intro{
+    position:absolute;inset:0;z-index:25;background:#000;
+    display:flex;flex-direction:column;justify-content:flex-start;align-items:center;
+    color:#fff;font-family:'Courier New',monospace;text-align:center;padding:90px 20px 20px;
+    overflow:hidden;
+  }
+  #intro::before{
+    content:"";position:absolute;inset:0;
+    background:
+      repeating-linear-gradient(0deg, rgba(0,212,255,.06) 0 1px, transparent 1px 3px),
+      radial-gradient(circle at center, rgba(0,212,255,.18), transparent 70%);
+    animation:scan 3s linear infinite;pointer-events:none;
+  }
+  #introMatrix{position:absolute;inset:0;z-index:1;opacity:.45;pointer-events:none}
+  #introScan{
+    position:absolute;left:0;right:0;height:2px;z-index:3;pointer-events:none;
+    background:linear-gradient(90deg,transparent 0%,rgba(0,212,255,.6) 40%,#fff 50%,rgba(0,212,255,.6) 60%,transparent 100%);
+    box-shadow:0 0 12px rgba(0,212,255,.6);
+    animation:scanMove 3.6s linear infinite;
+  }
+  @keyframes scanMove{
+    0%{top:-3%;opacity:1}
+    98%{top:100%;opacity:.9}
+    100%{top:100%;opacity:0}
+  }
+  #introGlitch{
+    position:absolute;inset:0;z-index:3;pointer-events:none;opacity:0;
+    background:
+      repeating-linear-gradient(0deg,rgba(0,212,255,.18) 0 1px,transparent 1px 3px),
+      repeating-linear-gradient(90deg,rgba(255,43,209,.10) 0 1px,transparent 1px 4px);
+    mix-blend-mode:screen;
+    animation:glitchFx 5.2s ease-in-out infinite;
+  }
+  @keyframes glitchFx{
+    0%,80%,100%{opacity:0;transform:translate(0)}
+    82%{opacity:.85;transform:translate(-8px,0)}
+    84%{opacity:.5;transform:translate(6px,2px)}
+    86%{opacity:.9;transform:translate(-4px,-1px)}
+    88%{opacity:.3;transform:translate(0,0)}
+    90%{opacity:0}
+  }
+  #intro .alarm{
+    position:absolute;left:50%;transform:translateX(-50%);top:74px;z-index:4;
+    font-size:11px;color:#ff5566;letter-spacing:.3em;font-weight:bold;
+    text-shadow:0 0 8px #ff2244;
+    animation:alarmBlink 1.2s steps(2) infinite;
+  }
+  @keyframes alarmBlink{50%{opacity:.3}}
+  #intro .stat{
+    background:rgba(20,0,0,.85);border:1.5px solid #ff4466;
+    box-shadow:0 0 16px rgba(255,68,102,.55),inset 0 0 10px rgba(255,68,102,.1);
+    padding:10px 14px;color:#fff;letter-spacing:.04em;line-height:1.2;
+    border-radius:3px;text-align:left;display:flex;justify-content:space-between;align-items:center;
+    opacity:0;transform:translateX(-30px);
+    animation:statIn 500ms cubic-bezier(.2,.9,.3,1.2) both;
+  }
+  @keyframes statIn{to{opacity:1;transform:none}}
+  #intro .stat .label{font-size:12px;color:#ffaab0}
+  #intro .stat .label small{display:block;font-size:9px;color:#ff8090;letter-spacing:.1em;margin-top:2px}
+  #intro .stat .num{font-size:28px;font-weight:bold;color:#ff4466;text-shadow:0 0 12px #ff2244;font-variant-numeric:tabular-nums;letter-spacing:0}
+  #intro .stat .num .u{font-size:14px;color:#ffaab0;margin-left:2px}
+  @keyframes scan{
+    0%{background-position:0 0,0 0}
+    100%{background-position:0 6px,0 0}
+  }
+  #intro .frame{position:relative;z-index:2;width:100%}
+  #intro h1{
+    font-size:42px;font-weight:bold;letter-spacing:.1em;color:#fff;
+    text-shadow:0 0 16px #00d4ff,0 0 4px #fff;
+    animation:hpop 700ms cubic-bezier(.2,.8,.3,1) both;
+    margin-bottom:6px;
+  }
+  #intro .sub{
+    font-size:14px;color:#00d4ff;letter-spacing:.18em;
+    text-shadow:0 0 8px #00d4ff;animation:fadein 600ms 200ms both;
+  }
+  @keyframes hpop{from{transform:translateY(-30px) scale(.6);opacity:0;filter:blur(8px)}to{transform:none;opacity:1;filter:none}}
+  @keyframes fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  #intro .body{
+    margin-top:24px;display:flex;flex-direction:column;gap:10px;
+    width:100%;max-width:440px;align-items:stretch;
+    min-height:680px;
+  }
+  #intro .card{
+    background:rgba(0,16,24,.82);border:1.5px solid #00d4ff;
+    box-shadow:0 0 18px rgba(0,212,255,.55),inset 0 0 12px rgba(0,212,255,.1);
+    padding:14px 18px;color:#fff;font-size:20px;letter-spacing:.04em;line-height:1.45;
+    border-radius:4px;text-align:left;
+    opacity:0;transform:translateY(-22px) scale(.94);
+    animation:cardin 520ms cubic-bezier(.2,.9,.3,1.3) both;
+  }
+  @keyframes cardin{to{opacity:1;transform:none}}
+  #intro .card .step{font-size:12px;color:#7ce7ff;letter-spacing:.18em;margin-bottom:5px;text-shadow:0 0 6px #00d4ff;font-weight:bold}
+  #intro .card .red{color:#ff2244;text-shadow:0 0 8px #ff2244;font-weight:bold}
+  #intro .card .yel{color:#ffcc00;text-shadow:0 0 8px #ffcc00;font-weight:bold}
+  #intro .card .grn{color:#39ff88;text-shadow:0 0 8px #39ff88;font-weight:bold}
+  #intro .red{color:#ff2244;text-shadow:0 0 8px #ff2244}
+  #intro .yel{color:#ffcc00;text-shadow:0 0 8px #ffcc00}
+  #intro .grn{color:#39ff88;text-shadow:0 0 8px #39ff88}
+  #intro .chips{
+    margin-top:24px;display:flex;flex-wrap:wrap;justify-content:center;gap:6px 8px;
+    padding:0 12px;max-width:480px;
+  }
+  #intro .chip{
+    background:rgba(0,16,24,.7);border:1px solid #00d4ff;color:#fff;
+    padding:6px 10px;font-size:13px;letter-spacing:.05em;border-radius:3px;
+    box-shadow:0 0 8px rgba(0,212,255,.4);opacity:0;
+    transform:scale(.4) rotate(-12deg);
+    animation:chip 380ms cubic-bezier(.2,.9,.3,1.4) both;
+  }
+  @keyframes chip{to{opacity:1;transform:none}}
+  #intro .pulse{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:80%;height:80%;border-radius:50%;
+    border:1px solid #00d4ff;opacity:0;
+    animation:pulse 1.6s ease-out infinite;
+  }
+  @keyframes pulse{0%{opacity:.7;transform:translate(-50%,-50%) scale(.2)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.4)}}
+
+  #terminal{
+    position:absolute;left:3%;right:3%;top:12%;bottom:14%;z-index:11;
+    background:rgba(0,8,0,.97);border:2px solid #00ff66;
+    font-family:'Courier New',monospace;font-size:14px;color:#00ff66;
+    padding:12px 14px;overflow:hidden;opacity:0;
+    box-shadow:0 0 32px rgba(0,255,102,.65),inset 0 0 20px rgba(0,255,102,.1);
+    text-shadow:0 0 5px #00ff66;
+  }
+  #terminal::before{content:"● ○ ○  root@INFRA-GOV.JP  ──  /bin/zsh";display:block;border-bottom:1px solid #003311;padding-bottom:6px;margin-bottom:8px;color:#66ffaa;font-size:12px;letter-spacing:.1em}
+  #terminal .cmd{color:#fff;text-shadow:0 0 6px #00ff66}
+  #terminal .warn{color:#ff6;text-shadow:0 0 6px #ff6}
+  #terminal .err{color:#f44;text-shadow:0 0 6px #f44}
+  #terminal .ok{color:#00ff66}
+  #terminal .dim{color:#558866}
+  #terminal .cursor{display:inline-block;width:8px;height:14px;background:#00ff66;animation:cur 1s steps(2) infinite;vertical-align:middle;margin-left:3px}
+  @keyframes cur{50%{opacity:0}}
+  #terminal .line{line-height:1.4;white-space:pre-wrap;word-break:break-all}
+  #loading{
+    position:absolute;left:0;right:0;top:50%;text-align:center;z-index:20;
+    font-size:12px;color:var(--neon);text-shadow:0 0 6px var(--neon);
+    letter-spacing:.15em;
+  }
+</style>
+</head>
+<body>
+<div id="scaler">
+<div id="stage">
+ <div id="mapZoom" style="position:absolute;inset:0;transition:transform 600ms cubic-bezier(.4,0,.2,1);transform-origin:0 0;will-change:transform">
+  <svg id="svg" viewBox="0 0 540 960" preserveAspectRatio="xMidYMid meet">
+    <defs>
+      <filter id="glowSoft" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="1.5" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="glowMid" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="2.5" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="glowStrong" x="-100%" y="-100%" width="300%" height="300%">
+        <feGaussianBlur stdDeviation="5" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <radialGradient id="capitalGlow">
+        <stop offset="0%" stop-color="#fff" stop-opacity=".9"/>
+        <stop offset="40%" stop-color="#ffcc00" stop-opacity=".5"/>
+        <stop offset="100%" stop-color="#ffcc00" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <g id="layerLand"></g>
+    <g id="layerOldEdges"></g>
+    <g id="layerOldCities"></g>
+    <g id="layerMountains"></g>
+    <g id="layerScan"></g>
+    <g id="layerCandidates"></g>
+    <g id="layerEdges"></g>
+    <g id="layerCities"></g>
+    <g id="layerHi"></g>
+  </svg>
+ </div>
+
+  <div id="redOverlay"></div>
+  <div id="glitch"></div>
+  <div id="blackout"></div>
+
+  <div id="hud-top">
+    <span>[ SYS // JAPAN_REBOOT_v1.0 ]</span>
+    <span class="blink">REC ●</span>
+  </div>
+  <div id="phaseTag">PHASE 0 // BOOT</div>
+  <div id="capitalBadge"></div>
+  <div id="habBadge">
+    <h5>◆ 居住適性マップ</h5>
+    <div><span class="dot g"></span>緑 = 高適性</div>
+    <div><span class="dot y"></span>黄 = 中適性</div>
+    <div><span class="dot r"></span>赤 = 山岳(経路困難)</div>
+    <div class="formula">適性 = 平地×温暖×沿岸<br>　　　×低地震×陸塊<br>赤 = 標高高 (A*重み)</div>
+  </div>
+  <div id="legend">
+    <div><span class="sw c1"></span>直結（陸路最短）</div>
+    <div><span class="sw c2"></span>迂回+新都市（山岳バイパス）</div>
+    <div><span class="sw c3"></span>海路（橋梁/フェリー）</div>
+    <div><span class="sw c4"></span>空路（長距離離島）</div>
+  </div>
+  <div id="title">REBOOT JAPAN</div>
+  <div id="subtitle">もし、日本をゼロから設計し直したら？</div>
+
+  <div class="countdown" id="cd">3</div>
+
+  <div id="scorePanel">
+    <h4>◆ 首都選定 / DECISION MATRIX</h4>
+    <table id="scoreTable"></table>
+    <div class="weights">WEIGHTS: 地震22% 津波15% 標高15% 気候20% 中央13% 防衛15%</div>
+  </div>
+
+  <div id="reason">
+    <h4 id="reasonName">◆ NEW CAPITAL</h4>
+    <div class="b"><span>SEISMIC RISK</span><span id="rSei">-</span></div>
+    <div class="b"><span>TSUNAMI</span><span id="rTsu">-</span></div>
+    <div class="b"><span>ELEVATION</span><span id="rElev">-</span></div>
+    <div class="b"><span>CENTRALITY</span><span id="rCen">-</span></div>
+    <div class="b"><span>DEFENSE (inland)</span><span id="rDef">-</span></div>
+    <div class="b" style="margin-top:4px"><span style="color:#ffcc00">TOTAL SCORE</span><span id="rTot" style="color:#ffcc00;text-shadow:0 0 6px #ffcc00">-</span></div>
+  </div>
+
+  <div id="dilemma">
+    <div class="head">⚠ 山岳遭遇 — 経路判断</div>
+    <div style="font-size:9px;color:#9be9ff;text-align:center;margin-bottom:4px" id="dCtx">区間: ○○ → ○○ / 標高 ○m</div>
+    <div class="opts">
+      <div class="opt bad">
+        <div class="ttl">案A: 貫通トンネル</div>
+        <div class="cost">¥<span id="dTunnel">500</span>B</div>
+        <div class="desc">最短だが高額・維持困難</div>
+      </div>
+      <div class="opt good">
+        <div class="ttl">案B: 迂回+新都市</div>
+        <div class="cost">+¥<span id="dCity">850</span>B</div>
+        <div class="desc">山を回避、平地に都市創発</div>
+      </div>
+    </div>
+    <div class="pick">AIの判断: <b id="dPick">▶ 案B採用（B>A の経済合理性）</b></div>
+  </div>
+
+  <div id="narration"></div>
+  <div id="log"></div>
+
+  <div id="stats">
+    <div class="stat"><div class="k">BUILD COST</div><div class="v"><span id="sCost">0</span><span class="u">兆円</span></div></div>
+    <div class="stat"><div class="k">EFFICIENCY</div><div class="v"><span id="sEff">0</span><span class="u">%</span></div></div>
+    <div class="stat"><div class="k">CITIES</div><div class="v"><span id="sCity">0</span><span class="u">基</span></div></div>
+    <div class="stat"><div class="k">DISASTER RISK</div><div class="v"><span id="sRisk">--</span><span class="u">idx</span></div></div>
+  </div>
+
+  <div id="compare">
+    <h4>◆ 旧 vs 新 評価比較</h4>
+    <table>
+      <tr><th class="l">指標</th><th>旧 (東京一極)</th><th>新 (AI設計)</th><th>Δ</th></tr>
+      <tr><td class="l">効率 (EFF)</td><td class="old">42%</td><td class="new">99%</td><td class="delta">+57</td></tr>
+      <tr><td class="l">災害リスク</td><td class="old">82</td><td class="new">12</td><td class="delta">-70</td></tr>
+      <tr><td class="l">建設+維持コスト</td><td class="old">12.8兆</td><td class="new" id="cmpCost">8.4兆</td><td class="delta">-34%</td></tr>
+      <tr><td class="l">最遠所要時間</td><td class="old">9.2h</td><td class="new">3.6h</td><td class="delta">-61%</td></tr>
+      <tr><td class="l">一極集中度</td><td class="old">0.87</td><td class="new">0.22</td><td class="delta">-75%</td></tr>
+    </table>
+  </div>
+  <div id="summary">
+    <h4>◆ AI再構築マップ - 都市一覧</h4>
+    <table id="summaryTable"></table>
+  </div>
+  <div id="cta">
+    <div class="ttl">AIが導き出した<br><b>日本の最適化</b></div>
+    <div class="q">あなたの意見を聞かせてください<small>コメントで議論しましょう</small></div>
+  </div>
+  <div id="intro">
+    <canvas id="introMatrix" width="540" height="960"></canvas>
+    <div id="introScan"></div>
+    <div id="introGlitch"></div>
+    <div class="alarm">⚠ JAPAN_v1.0 CRITICAL ISSUES DETECTED ⚠</div>
+    <div class="pulse"></div>
+    <div class="pulse" style="animation-delay:.5s"></div>
+    <div class="pulse" style="animation-delay:1.0s"></div>
+    <div class="frame">
+      <h1>JAPAN REBOOT</h1>
+      <div class="sub">SIMULATION // 2026</div>
+      <div class="body" id="introBody"></div>
+    </div>
+  </div>
+  <canvas id="particles" width="540" height="960"></canvas>
+  <div id="terminal"><div id="termBody"></div></div>
+  <div id="loading">LOADING TERRAIN DATA…</div>
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
+<script>
+/* ---------------- Fit to viewport ---------------- */
+function fit(){
+  const s = Math.min(window.innerWidth/540, window.innerHeight/960);
+  document.getElementById('scaler').style.transform = `scale(${s})`;
+}
+window.addEventListener('resize', fit); fit();
+
+/* ---------------- Setup ---------------- */
+const W = 540, H = 960;
+const svg = d3.select("#svg");
+const layerLand = svg.select("#layerLand");
+const layerOldE = svg.select("#layerOldEdges");
+const layerOldC = svg.select("#layerOldCities");
+const layerMtn = svg.select("#layerMountains");
+const layerScan = svg.select("#layerScan");
+const layerCand = svg.select("#layerCandidates");
+const layerEdges = svg.select("#layerEdges");
+const layerCities = svg.select("#layerCities");
+const layerHi = svg.select("#layerHi");
+
+const projection = d3.geoMercator()
+  .center([137.5, 38.0])
+  .scale(1350)
+  .translate([W/2, 340]);
+const path = d3.geoPath(projection);
+
+/* ----- Synthetic terrain & risk fields ----- */
+const MOUNTAINS = [
+  {ll:[138.2, 36.4], r:1.4, h:1.0},
+  {ll:[140.7, 39.5], r:1.6, h:0.7},
+  {ll:[142.8, 43.5], r:1.8, h:0.65},
+  {ll:[131.2, 33.7], r:1.4, h:0.55},
+  {ll:[133.7, 35.0], r:1.1, h:0.55},
+  {ll:[133.5, 33.7], r:1.2, h:0.55},
+  {ll:[138.8, 35.4], r:0.7, h:0.6},  // Fuji
+];
+function elevation(lng,lat){
+  let e=0; for(const m of MOUNTAINS){const dx=(lng-m.ll[0])/m.r,dy=(lat-m.ll[1])/m.r; e+=m.h*Math.exp(-(dx*dx+dy*dy));} return e;
+}
+const SEISMIC_ZONES = [
+  {ll:[139.7,35.7], r:1.0, h:1.0},  // Tokyo / Sagami
+  {ll:[136.5,34.0], r:1.7, h:0.9},  // Nankai trough
+  {ll:[131.5,31.5], r:1.4, h:0.8},
+  {ll:[142.0,38.5], r:1.6, h:0.85}, // Tohoku Pacific
+  {ll:[144.0,42.5], r:1.4, h:0.7},
+  {ll:[136.9,37.5], r:0.6, h:0.5},  // Noto
+];
+function seismicAt(lng,lat){
+  let r=0.10;
+  for(const z of SEISMIC_ZONES){const dx=(lng-z.ll[0])/z.r,dy=(lat-z.ll[1])/z.r; r+=z.h*Math.exp(-(dx*dx+dy*dy));}
+  return Math.min(1,r);
+}
+
+/* ----- 47 prefectural capitals (county seats) ----- */
+const PREFS = [
+  ["Sapporo","札幌",141.35,43.07],["Aomori","青森",140.74,40.82],["Morioka","盛岡",141.15,39.70],
+  ["Sendai","仙台",140.87,38.27],["Akita","秋田",140.10,39.72],["Yamagata","山形",140.36,38.24],
+  ["Fukushima","福島",140.47,37.75],["Mito","水戸",140.45,36.34],["Utsunomiya","宇都宮",139.88,36.57],
+  ["Maebashi","前橋",139.06,36.39],["Saitama","さいたま",139.65,35.86],["Chiba","千葉",140.12,35.61],
+  ["Tokyo","東京",139.69,35.69],["Yokohama","横浜",139.64,35.45],["Niigata","新潟",139.04,37.90],
+  ["Toyama","富山",137.21,36.70],["Kanazawa","金沢",136.63,36.56],["Fukui","福井",136.22,36.07],
+  ["Kofu","甲府",138.57,35.66],["Nagano","長野",138.18,36.65],["Gifu","岐阜",136.72,35.39],
+  ["Shizuoka","静岡",138.38,34.98],["Nagoya","名古屋",136.91,35.18],["Tsu","津",136.51,34.73],
+  ["Otsu","大津",135.87,35.00],["Kyoto","京都",135.76,35.01],["Osaka","大阪",135.50,34.69],
+  ["Kobe","神戸",135.20,34.69],["Nara","奈良",135.83,34.69],["Wakayama","和歌山",135.17,34.23],
+  ["Tottori","鳥取",134.24,35.50],["Matsue","松江",133.05,35.47],["Okayama","岡山",133.93,34.66],
+  ["Hiroshima","広島",132.46,34.40],["Yamaguchi","山口",131.47,34.19],["Tokushima","徳島",134.56,34.07],
+  ["Takamatsu","高松",134.04,34.34],["Matsuyama","松山",132.77,33.84],["Kochi","高知",133.53,33.56],
+  ["Fukuoka","福岡",130.42,33.59],["Saga","佐賀",130.30,33.25],["Nagasaki","長崎",129.87,32.74],
+  ["Kumamoto","熊本",130.74,32.79],["Oita","大分",131.61,33.24],["Miyazaki","宮崎",131.42,31.91],
+  ["Kagoshima","鹿児島",130.55,31.59],["Naha","那覇",127.68,26.21],
+];
+
+/* ----- Supplemental municipalities for accurate nearest-city lookup ----- */
+const MUNI_EXTRA = [
+  // Hokkaido
+  ["Hakodate","函館",140.73,41.77],["Asahikawa","旭川",142.36,43.77],
+  ["Kushiro","釧路",144.38,42.97],["Obihiro","帯広",143.20,42.92],
+  ["Abashiri","網走",144.27,44.02],["Nemuro","根室",145.58,43.33],
+  ["Wakkanai","稚内",141.67,45.42],["Tomakomai","苫小牧",141.60,42.63],
+  ["Muroran","室蘭",140.98,42.32],["Kitami","北見",143.90,43.83],
+  // Tohoku
+  ["Hachinohe","八戸",141.49,40.51],["Hirosaki","弘前",140.47,40.60],
+  ["Sakata","酒田",139.84,38.91],["Iwaki","いわき",140.89,36.94],
+  ["Koriyama","郡山",140.39,37.40],["Ishinomaki","石巻",141.30,38.43],
+  ["Aizuwakamatsu","会津若松",139.93,37.49],
+  // Kanto
+  ["Kawasaki","川崎",139.70,35.53],["Tachikawa","立川",139.41,35.69],
+  ["Chichibu","秩父",139.08,35.99],["Kashiwa","柏",139.97,35.86],
+  ["Numazu","沼津",138.86,35.10],
+  // Chubu
+  ["Hamamatsu","浜松",137.73,34.71],["Toyohashi","豊橋",137.39,34.77],
+  ["Toyota","豊田",137.16,35.08],["Takayama","高山",137.25,36.14],
+  ["Matsumoto","松本",137.97,36.24],["Iida","飯田",137.82,35.51],
+  ["Nagaoka","長岡",138.85,37.45],["Joetsu","上越",138.24,37.15],
+  ["Komatsu","小松",136.45,36.40],
+  // Kansai
+  ["Sakai","堺",135.48,34.57],["Himeji","姫路",134.69,34.83],
+  ["Toyooka","豊岡",134.82,35.55],["Tanabe","田辺",135.38,33.73],
+  // Chugoku
+  ["Yonago","米子",133.33,35.43],["Hamada","浜田",132.07,34.90],
+  ["Masuda","益田",131.84,34.68],["Tsuyama","津山",134.00,35.07],
+  ["Fukuyama","福山",133.36,34.49],["Iwakuni","岩国",132.22,34.17],
+  ["Shimonoseki","下関",130.94,33.96],["Hagi","萩",131.40,34.41],
+  // Shikoku
+  ["Imabari","今治",132.99,34.07],["Uwajima","宇和島",132.55,33.22],
+  ["Niihama","新居浜",133.28,33.96],["Nakamura","中村",132.93,32.99],
+  // Kyushu
+  ["Kitakyushu","北九州",130.88,33.88],["Sasebo","佐世保",129.71,33.18],
+  ["Beppu","別府",131.50,33.28],["Hita","日田",130.94,33.32],
+  ["Miyakonojo","都城",131.06,31.73],["Kanoya","鹿屋",130.85,31.38],
+  ["Nobeoka","延岡",131.66,32.58],["Yatsushiro","八代",130.60,32.51],
+  ["Omura","大村",129.95,32.92],["Isahaya","諫早",130.05,32.84],
+  ["Amakusa","天草",130.19,32.45],["Arao","荒尾",130.44,32.98],
+  ["Karatsu","唐津",129.97,33.45],["Hitoyoshi","人吉",130.76,32.21],
+  // Okinawa / outer
+  ["Ishigaki","石垣",124.16,24.34],["Miyakojima","宮古島",125.28,24.79],
+  ["Amami","奄美",129.49,28.38],
+];
+const MUNI=[...PREFS, ...MUNI_EXTRA];
+
+/* ----- 15 hubs for old network (subset of major cities, excluding Naha for visual) ----- */
+const OLD_HUBS_NAMES = ["Sapporo","Sendai","Niigata","Tokyo","Yokohama","Nagoya","Kanazawa","Kyoto","Osaka","Hiroshima","Takamatsu","Matsuyama","Fukuoka","Kagoshima","Aomori"];
+
+/* ---------------- Phase orchestration ---------------- */
+const logEl = document.getElementById('log');
+function logLine(text, cls){
+  const d = document.createElement('div');
+  d.className = 'line' + (cls?' '+cls:'');
+  d.innerHTML = text;
+  logEl.appendChild(d);
+  while(logEl.children.length > 8) logEl.removeChild(logEl.firstChild);
+}
+const narrationEl=document.getElementById('narration');
+let narrTimer=null;
+function setNarration(html){
+  narrationEl.style.opacity=0;
+  clearTimeout(narrTimer);
+  narrTimer=setTimeout(()=>{
+    narrationEl.innerHTML=html;
+    narrationEl.style.opacity=1;
+  },220);
+}
+function clearNarration(){ narrationEl.style.opacity=0; }
+
+function setPhase(p){
+  const el=document.getElementById('phaseTag');
+  el.textContent=p;
+  el.style.animation='none';
+  el.getBoundingClientRect();
+  el.style.animation='phasePulse 700ms cubic-bezier(.2,.9,.3,1)';
+}
+
+/* ===== Background particles ===== */
+(function initParticles(){
+  const cv=document.getElementById('particles');
+  const ctx=cv.getContext('2d');
+  const W=540,H=960;
+  const ps=[];
+  for(let i=0;i<70;i++){
+    ps.push({
+      x:Math.random()*W, y:Math.random()*H,
+      vx:(Math.random()-0.5)*0.25,
+      vy:-0.18-Math.random()*0.45,
+      r:0.6+Math.random()*1.5,
+      hue:Math.random()<0.55?'#00d4ff':(Math.random()<0.5?'#ffcc00':'#ff2bd1'),
+      tw:Math.random()*6.28,
+      a:0.25+Math.random()*0.55,
+    });
+  }
+  function tick(t){
+    ctx.clearRect(0,0,W,H);
+    for(const p of ps){
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.y<-8){p.y=H+8;p.x=Math.random()*W;}
+      if(p.x<-8) p.x=W+8; else if(p.x>W+8) p.x=-8;
+      const a=p.a*(0.55+0.45*Math.sin(t*0.003+p.tw));
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,p.r,0,6.283);
+      ctx.fillStyle=p.hue;
+      ctx.globalAlpha=a;
+      ctx.shadowBlur=8;
+      ctx.shadowColor=p.hue;
+      ctx.fill();
+    }
+    ctx.globalAlpha=1;
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
+
+/* ===== Stage shake (for dramatic moments) ===== */
+function shakeStage(intensity=6, ms=400){
+  const st=document.getElementById('stage');
+  st.animate([
+    {transform:'translate(0,0)'},
+    {transform:`translate(${-intensity}px,${intensity*0.5}px)`},
+    {transform:`translate(${intensity*0.8}px,${-intensity*0.4}px)`},
+    {transform:`translate(${-intensity*0.5}px,${intensity*0.3}px)`},
+    {transform:'translate(0,0)'},
+  ],{duration:ms,iterations:1});
+}
+
+/* ===== Flow pulses along edges (cinematic finale) ===== */
+const mainEdgePaths = [];
+function recordEdgePath(d){ mainEdgePaths.push(d); }
+function flowPulse(d, color, dur=2200, size=2.6){
+  const tmp=layerHi.append("path").attr("d",d).attr("fill","none").attr("stroke","none");
+  const node=tmp.node(); const len=node.getTotalLength();
+  if(!len) { tmp.remove(); return; }
+  const dot=layerHi.append("circle").attr("r",size).attr("fill",color)
+    .attr("filter","url(#glowMid)").attr("opacity",.95);
+  const t0=performance.now();
+  function step(){
+    const dt=performance.now()-t0;
+    if(dt>dur){ dot.remove(); tmp.remove(); return; }
+    const p=dt/dur;
+    const pt=node.getPointAtLength(p*len);
+    dot.attr("cx",pt.x).attr("cy",pt.y);
+    if(p>0.85) dot.attr("opacity", (1-p)/0.15 * 0.95);
+    requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+/* ===== City spawn burst ===== */
+function cityBurst(x,y,color,n=10,scale=1){
+  const layerHiSel=d3.select("#layerHi");
+  for(let i=0;i<n;i++){
+    const ang=(i/n)*Math.PI*2+Math.random()*0.4;
+    const r1=(18+Math.random()*14)*scale;
+    const x1=x+Math.cos(ang)*r1, y1=y+Math.sin(ang)*r1;
+    layerHiSel.append("circle")
+      .attr("cx",x).attr("cy",y).attr("r",1.5*scale)
+      .attr("fill",color).attr("filter","url(#glowMid)").attr("opacity",1)
+      .transition().duration(420+Math.random()*260).ease(d3.easeCubicOut)
+      .attr("cx",x1).attr("cy",y1).attr("r",0).attr("opacity",0).remove();
+  }
+  // Shockwave ring
+  layerHiSel.append("circle")
+    .attr("cx",x).attr("cy",y).attr("r",2).attr("fill","none")
+    .attr("stroke",color).attr("stroke-width",1.5).attr("opacity",.95)
+    .attr("filter","url(#glowMid)")
+    .transition().duration(700).ease(d3.easeCubicOut)
+    .attr("r",26*scale).attr("opacity",0).attr("stroke-width",0).remove();
+}
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+// === Map zoom helpers ===
+const mapZoom = document.getElementById('mapZoom');
+function setZoom(cx,cy,scale,ms){
+  // scale around the stage center; map (cx,cy) to (W/2, H/2)
+  const tx = W/2 - cx*scale;
+  const ty = H/2 - cy*scale;
+  mapZoom.style.transitionDuration = ms+'ms';
+  mapZoom.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
+}
+function resetZoom(ms){
+  mapZoom.style.transitionDuration = ms+'ms';
+  mapZoom.style.transform = 'translate(0,0) scale(1)';
+}
+
+// === Intro overlay sequence (≈ 6s) ===
+async function runIntro(){
+  const intro=document.getElementById('intro');
+  const body=document.getElementById('introBody');
+
+  // ----- Matrix rain background -----
+  const mc=document.getElementById('introMatrix');
+  const mctx=mc.getContext('2d');
+  const cols=Math.floor(540/12);
+  const drops=Array.from({length:cols},()=>Math.random()*60);
+  const chars='ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉ01234567890123456789東京大阪災害地震津波豪雪山岳';
+  let matrixOn=true;
+  function tickMatrix(){
+    if(!matrixOn) return;
+    mctx.fillStyle='rgba(0,0,0,.18)'; mctx.fillRect(0,0,540,960);
+    mctx.font='bold 13px monospace';
+    for(let i=0;i<cols;i++){
+      const ch=chars[Math.floor(Math.random()*chars.length)];
+      const y=drops[i]*16;
+      mctx.fillStyle = Math.random()<0.04?'#fff':(Math.random()<0.3?'#ff5566':'#00ff66');
+      mctx.shadowBlur=4; mctx.shadowColor=mctx.fillStyle;
+      mctx.fillText(ch, i*12, y);
+      if(y>960 && Math.random()>0.97) drops[i]=0; else drops[i]++;
+    }
+    requestAnimationFrame(tickMatrix);
+  }
+  requestAnimationFrame(tickMatrix);
+
+  await sleep(900);
+
+  // ----- Rolling number stat helper -----
+  function rollNumber(el, to, ms, suffix='', unit=''){
+    const t0=performance.now();
+    function step(now){
+      const t=Math.min(1,(now-t0)/ms);
+      const eased=1-Math.pow(1-t,3);
+      const v = (to*eased).toFixed(suffix==='%'||to<10?1:0).replace('.0','');
+      el.innerHTML=`${v}${suffix}<span class="u">${unit}</span>`;
+      if(t<1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  // ----- Problem stats cards (current Japan issues) -----
+  const stats=[
+    {label:'東京一極集中', sub:'人口の約30%が首都圏に集中', num:30,  suf:'%', unit:'', d:1000},
+    {label:'南海トラフM8-9', sub:'30年以内発生確率', num:80, suf:'%', unit:'', d:1000},
+    {label:'首都直下地震', sub:'30年以内発生確率', num:70, suf:'%', unit:'', d:1000},
+    {label:'豪雪地帯指定', sub:'国土の約半分が豪雪地域', num:51, suf:'%', unit:'', d:1100},
+  ];
+  for(const s of stats){
+    const row=document.createElement('div');
+    row.className='stat';
+    row.innerHTML=`<div class="label">${s.label}<small>${s.sub}</small></div><div class="num">0${s.suf}</div>`;
+    body.appendChild(row);
+    rollNumber(row.querySelector('.num'), s.num, 800, s.suf, s.unit);
+    await sleep(s.d);
+  }
+
+  await sleep(700);
+
+  // ----- AI rebuild proposition cards -----
+  // Fade out red stats softly while keeping them visible
+  body.querySelectorAll('.stat').forEach(el=>{el.style.transition='opacity 500ms';el.style.opacity=.3;});
+
+  const cards=[
+    {s:'PHASE 00.1 // HYPOTHESIS', t:'もし日本を <span class="red">ゼロからリセット</span> できたら？', d:1100},
+    {s:'PHASE 00.2 // REBUILD',    t:'AIが <span class="grn">地形・気候・災害</span> から最適配置を再構築', d:1200},
+  ];
+  for(const c of cards){
+    const card=document.createElement('div');
+    card.className='card';
+    card.innerHTML=`<div class="step">${c.s}</div>${c.t}`;
+    body.appendChild(card);
+    await sleep(c.d);
+  }
+
+  // Evaluation axis chips
+  const axisCard=document.createElement('div');
+  axisCard.className='card';
+  axisCard.innerHTML=`<div class="step">PHASE 00.3 // EVALUATION AXIS</div><div id="chipsHere"></div>`;
+  body.appendChild(axisCard);
+  await sleep(180);
+  const here=document.getElementById('chipsHere');
+  here.style.cssText='display:flex;flex-wrap:wrap;gap:5px 6px;margin-top:4px';
+  const items=['地震帯','津波','標高','気候','豪雪回避','陸塊サイズ','中央性','防衛'];
+  for(let i=0;i<items.length;i++){
+    const c=document.createElement('span');
+    c.className='chip';
+    c.style.animationDelay=(i*60)+'ms';
+    c.textContent=items[i];
+    here.appendChild(c);
+  }
+  await sleep(2200);
+
+  matrixOn=false;
+  intro.style.transition='opacity 500ms';
+  intro.style.opacity=0;
+  await sleep(450);
+  intro.style.display='none';
+}
+
+// === Hacker-style terminal sequence ===
+async function runTerminal(){
+  const term=document.getElementById('terminal');
+  const body=document.getElementById('termBody');
+  body.innerHTML='';
+  term.style.transition='opacity 250ms';
+  term.style.opacity=1;
+  const lines=[
+    {t:'$ ssh -i japan_root.pem root@infra.go.jp', c:'cmd', d:80},
+    {t:'Last login: 2026-05-17 11:42:08 from 127.0.0.1', c:'dim', d:60},
+    {t:'[root@INFRA ~]# whoami', c:'cmd', d:80},
+    {t:'root', c:'dim', d:50},
+    {t:'[root@INFRA ~]# uname -a', c:'cmd', d:80},
+    {t:'Linux INFRA 6.6.0-japan #1 SMP x86_64 GNU/Linux', c:'dim', d:60},
+    {t:'[root@INFRA ~]# df -h /japan', c:'cmd', d:80},
+    {t:'/dev/japan0  377,975 km2  98% used  /japan', c:'dim', d:80},
+    {t:'[root@INFRA ~]# uptime', c:'cmd', d:70},
+    {t:'  up 154 years,  load average: 9.87, 8.42, 7.11', c:'dim', d:60},
+    {t:'Last login: 2026-05-17 11:42:08 from 127.0.0.1', c:'dim', d:120},
+    {t:'[root@INFRA ~]# sudo rm -rf /japan/*', c:'cmd', d:160},
+    {t:'[sudo] password for root: ********', c:'dim', d:140},
+    {t:'WARNING: this will wipe ALL infrastructure data', c:'warn', d:100},
+    {t:'  47 prefectures · 1,718 municipalities', c:'dim', d:80},
+    {t:'  9,142 km railways · 8,800 km highways · 97 airports', c:'dim', d:80},
+    {t:'Proceed? [yes/NO] yes', c:'warn', d:240},
+    {t:'', c:'', d:60},
+    {t:'rm /infra/shinkansen/E5_E6_E7 .............. OK', c:'ok', d:65},
+    {t:'rm /infra/shinkansen/N700S ................. OK', c:'ok', d:65},
+    {t:'rm /infra/shinkansen/Hokuriku .............. OK', c:'ok', d:65},
+    {t:'rm /infra/highway/tomei .................... OK', c:'ok', d:65},
+    {t:'rm /infra/highway/meishin .................. OK', c:'ok', d:65},
+    {t:'rm /infra/highway/tohoku ................... OK', c:'ok', d:65},
+    {t:'rm /infra/highway/chuo ..................... OK', c:'ok', d:65},
+    {t:'rm /infra/highway/kanetsu .................. OK', c:'ok', d:65},
+    {t:'rm /infra/airports/HND ..................... OK', c:'ok', d:65},
+    {t:'rm /infra/airports/NRT ..................... OK', c:'ok', d:65},
+    {t:'rm /infra/airports/KIX ..................... OK', c:'ok', d:65},
+    {t:'rm /infra/airports/CTS ..................... OK', c:'ok', d:65},
+    {t:'rm /infra/airports/FUK ..................... OK', c:'ok', d:65},
+    {t:'rm /infra/ports/yokohama ................... OK', c:'ok', d:60},
+    {t:'rm /infra/ports/kobe ....................... OK', c:'ok', d:60},
+    {t:'rm /infra/ports/nagoya ..................... OK', c:'ok', d:60},
+    {t:'rm /infra/power/grid_east_50Hz ............. OK', c:'ok', d:60},
+    {t:'rm /infra/power/grid_west_60Hz ............. OK', c:'ok', d:60},
+    {t:'rm /infra/water/aqueducts (8,841 km) ....... OK', c:'ok', d:60},
+    {t:'rm /infra/telecom/fiber (4.2M km) .......... OK', c:'ok', d:60},
+    {t:'rm /cities/tokyo (13.96M) .................. OK', c:'ok', d:65},
+    {t:'rm /cities/osaka (2.75M) ................... OK', c:'ok', d:65},
+    {t:'rm /cities/yokohama (3.77M) ................ OK', c:'ok', d:65},
+    {t:'rm /cities/nagoya (2.33M) .................. OK', c:'ok', d:65},
+    {t:'rm /cities/sapporo (1.97M) ................. OK', c:'ok', d:65},
+    {t:'rm /cities/* (1,713 remaining) ............. OK', c:'ok', d:70},
+    {t:'rm /population_distribution_124M ........... OK', c:'ok', d:60},
+    {t:'rm /economy/GDP_pref_x47 ................... OK', c:'ok', d:60},
+    {t:'rm /admin/47_prefectures ................... OK', c:'ok', d:60},
+    {t:'', c:'', d:30},
+    {t:'[root@INFRA ~]# umount /japan', c:'cmd', d:110},
+    {t:'umount: /japan: target is busy.', c:'warn', d:80},
+    {t:'[root@INFRA ~]# umount -f /japan', c:'cmd', d:110},
+    {t:'forcing unmount ... DONE', c:'ok', d:70},
+    {t:'[root@INFRA ~]# reboot -h now', c:'cmd', d:200},
+    {t:'Broadcast: REBOOTING SYSTEM', c:'warn', d:140},
+    {t:'*** SYSTEM HALT — T-3 T-2 T-1 ***', c:'err', d:500},
+  ];
+  for(const ln of lines){
+    const d=document.createElement('div');
+    d.className='line '+ln.c;
+    d.textContent=ln.t || ' ';
+    body.appendChild(d);
+    if(body.children.length>32) body.removeChild(body.firstChild);
+    await sleep(ln.d);
+  }
+  // cursor blink for a beat
+  const cur=document.createElement('span'); cur.className='cursor';
+  body.lastChild.appendChild(cur);
+  await sleep(200);
+  term.style.opacity=0;
+  await sleep(250);
+}
+
+const sCost = document.getElementById('sCost');
+const sEff = document.getElementById('sEff');
+const sCityEl = document.getElementById('sCity');
+const sRisk = document.getElementById('sRisk');
+let costVal=0, effVal=0, cityCount=0;
+function setCost(v){costVal=v;sCost.textContent=v.toFixed(1)}
+function setEff(v){effVal=v;sEff.textContent=Math.round(v)}
+function setCities(v){cityCount=v;sCityEl.textContent=v}
+function setRisk(v){sRisk.textContent=v.toFixed(0)}
+function tween(setter,from,to,ms){return new Promise(res=>{const t0=performance.now();function s(n){const t=Math.min(1,(n-t0)/ms);setter(from+(to-from)*t);if(t<1)requestAnimationFrame(s);else res();}requestAnimationFrame(s);});}
+
+/* ---------------- Map + grid ---------------- */
+let landFeature=null, landOutline=null;
+const GW=110, GH=200;  // grid resolution (higher = better terrain hugging)
+let grid=null;        // array of {land,elev,seismic,xy,ll}
+let bbox=null;
+let cellDxLL,cellDyLL;
+function gidx(i,j){return j*GW+i;}
+
+async function loadMap(){
+  const url='https://raw.githubusercontent.com/dataofjapan/land/master/japan.topojson';
+  const topo=await fetch(url).then(r=>r.json());
+  const key=Object.keys(topo.objects)[0];
+  landFeature=topojson.feature(topo, topo.objects[key]);
+  landOutline=topojson.mesh(topo, topo.objects[key], (a,b)=>a===b);
+}
+
+function buildGrid(){
+  bbox = [[127, 30.5],[146.5, 45.7]];
+  cellDxLL=(bbox[1][0]-bbox[0][0])/GW;
+  cellDyLL=(bbox[1][1]-bbox[0][1])/GH;
+  // Rasterize land to offscreen canvas using same projection
+  const cnv=document.createElement('canvas');
+  cnv.width=GW; cnv.height=GH;
+  const ctx=cnv.getContext('2d');
+  // Build a temporary projection that maps bbox to canvas pixels exactly
+  const proj=d3.geoMercator()
+    .center([(bbox[0][0]+bbox[1][0])/2, (bbox[0][1]+bbox[1][1])/2])
+    .scale(1)
+    .translate([0,0]);
+  // fit to canvas
+  const fitPath=d3.geoPath(proj, ctx);
+  proj.fitExtent([[0,0],[GW,GH]], landFeature);
+  ctx.fillStyle="#000"; ctx.fillRect(0,0,GW,GH);
+  ctx.fillStyle="#fff"; ctx.beginPath();
+  d3.geoPath(proj,ctx)(landFeature);
+  ctx.fill();
+  const pix=ctx.getImageData(0,0,GW,GH).data;
+  grid=new Array(GW*GH);
+  for(let j=0;j<GH;j++){
+    for(let i=0;i<GW;i++){
+      const lng=bbox[0][0]+(i+0.5)*cellDxLL;
+      const lat=bbox[1][1]-(j+0.5)*cellDyLL;
+      // Sample with same projection used to fit
+      const xy=proj([lng,lat]);
+      let land=false;
+      if(xy){
+        const px=Math.max(0,Math.min(GW-1,Math.round(xy[0])));
+        const py=Math.max(0,Math.min(GH-1,Math.round(xy[1])));
+        land = pix[(py*GW+px)*4] > 64;
+      }
+      grid[gidx(i,j)]={lng,lat,land,elev:elevation(lng,lat),seismic:seismicAt(lng,lat)};
+    }
+  }
+}
+function llToCell(ll){
+  let i=Math.round((ll[0]-bbox[0][0])/cellDxLL-0.5);
+  let j=Math.round((bbox[1][1]-ll[1])/cellDyLL-0.5);
+  i=Math.max(0,Math.min(GW-1,i));
+  j=Math.max(0,Math.min(GH-1,j));
+  // snap to nearest land cell within 3 ring
+  if(!grid[gidx(i,j)].land){
+    let best=null,bestD=1e9;
+    for(let dj=-3;dj<=3;dj++)for(let di=-3;di<=3;di++){
+      const ni=i+di,nj=j+dj; if(ni<0||nj<0||ni>=GW||nj>=GH) continue;
+      if(grid[gidx(ni,nj)].land){const d=di*di+dj*dj; if(d<bestD){bestD=d;best=[ni,nj];}}
+    }
+    if(best){i=best[0];j=best[1];}
+  }
+  return [i,j];
+}
+
+/* Binary min-heap (entries: [f, idx]) */
+class Heap{
+  constructor(){this.a=[];}
+  push(f,idx){this.a.push([f,idx]); let i=this.a.length-1;
+    while(i>0){const p=(i-1)>>1; if(this.a[p][0]<=this.a[i][0])break; [this.a[p],this.a[i]]=[this.a[i],this.a[p]]; i=p;}}
+  pop(){const r=this.a[0]; const last=this.a.pop();
+    if(this.a.length){this.a[0]=last; let i=0,n=this.a.length;
+      while(true){const l=i*2+1,R=i*2+2; let s=i;
+        if(l<n&&this.a[l][0]<this.a[s][0])s=l;
+        if(R<n&&this.a[R][0]<this.a[s][0])s=R;
+        if(s===i)break;[this.a[s],this.a[i]]=[this.a[i],this.a[s]]; i=s;}}
+    return r;}
+  get size(){return this.a.length;}
+}
+/* A* on grid */
+function aStar(srcLL,dstLL,opts={}){
+  const [si,sj]=llToCell(srcLL);
+  const [ti,tj]=llToCell(dstLL);
+  const N=GW*GH;
+  const gScore=new Float32Array(N); gScore.fill(Infinity);
+  const came=new Int32Array(N); came.fill(-1);
+  const closed=new Uint8Array(N);
+  const startIdx=gidx(si,sj), goalIdx=gidx(ti,tj);
+  gScore[startIdx]=0;
+  const heap=new Heap();
+  heap.push(Math.hypot(ti-si,tj-sj), startIdx);
+  const SEA_COST = opts.allowSea===false ? 9999 : (opts.seaCost ?? 220);
+  const MTN_W = opts.mtnWeight ?? 8;
+  while(heap.size){
+    const [,cur]=heap.pop();
+    if(closed[cur]) continue;
+    closed[cur]=1;
+    if(cur===goalIdx){
+      const path=[];let c=cur;while(c!==-1){path.push(c);c=came[c];}path.reverse();
+      return path.map(idx=>grid[idx]);
+    }
+    const ci=cur%GW, cj=Math.floor(cur/GW);
+    for(let dj=-1;dj<=1;dj++)for(let di=-1;di<=1;di++){
+      if(!di&&!dj) continue;
+      const ni=ci+di,nj=cj+dj; if(ni<0||nj<0||ni>=GW||nj>=GH) continue;
+      const nidx=gidx(ni,nj); if(closed[nidx]) continue;
+      const cell=grid[nidx];
+      const step=Math.hypot(di,dj);
+      let stepCost=step*(1 + cell.elev*MTN_W + cell.seismic*1.5);
+      if(!cell.land) stepCost = step*SEA_COST;
+      const tentative=gScore[cur]+stepCost;
+      if(tentative<gScore[nidx]){
+        came[nidx]=cur;
+        gScore[nidx]=tentative;
+        heap.push(tentative+Math.hypot(ti-ni,tj-nj), nidx);
+      }
+    }
+  }
+  return null;
+}
+
+const lineGen = d3.line().curve(d3.curveCatmullRom.alpha(0.5));
+function pathD(cells){
+  if(!cells||!cells.length) return "";
+  const pts=cells.map(c=>projection([c.lng,c.lat]));
+  return lineGen(pts) || "";
+}
+
+function drawLand(layer,cls){
+  layer.selectAll("path").remove();
+  layer.selectAll("path").data(landFeature.features).join("path").attr("class",cls).attr("d",path);
+  if(cls==="land-new"){
+    layer.append("path").attr("class","land-outline").attr("d", path(landOutline));
+  }
+}
+
+/* ---------------- Phases ---------------- */
+async function run(){
+  // Run intro overlay and map load in parallel (intro takes ~6s, load similar)
+  const introP = runIntro();
+  await loadMap();
+  document.getElementById('loading').textContent="BUILDING GRID…";
+  await sleep(50);
+  buildGrid();
+  document.getElementById('loading').style.display="none";
+  await introP;  // ensure intro finishes before phase 1
+
+  /* ===== PHASE 1: Current Japan (lit network) ===== */
+  setPhase("PHASE 1 // CURRENT JAPAN");
+  setNarration('現在の日本 — <span class="red">東京一極集中</span>の交通網');
+  drawLand(layerLand,"land-old");
+
+  // Draw dense old network: each hub to several nearest via A* (allowing sea for ferry/bridge feel)
+  const hubs = OLD_HUBS_NAMES.map(n=>PREFS.find(p=>p[0]===n));
+  // also add inter-hub links for density
+  const oldPairs=[];
+  for(let i=0;i<hubs.length;i++){
+    // connect to 3 nearest
+    const dists=hubs.map((h,k)=>k===i?Infinity:Math.hypot(hubs[i][2]-h[2],hubs[i][3]-h[3]));
+    const order=[...dists.keys()].sort((a,b)=>dists[a]-dists[b]).slice(0,3);
+    for(const k of order) if(k>i) oldPairs.push([hubs[i],hubs[k]]);
+  }
+
+  // Show old cities first
+  for(const h of hubs){
+    const p=projection([h[2],h[3]]);
+    const isCap=h[0]==="Tokyo";
+    layerOldC.append("circle").attr("class", isCap?"old-capital":"old-city")
+      .attr("cx",p[0]).attr("cy",p[1]).attr("r",0)
+      .transition().duration(220).attr("r", isCap?5.5:3.2);
+  }
+  await sleep(250);
+
+  // Draw old A* paths quickly in batch
+  logLine("&gt; 現在の日本: 東京を中心とした放射状ネットワーク","ok");
+  logLine("&gt; 既存の幹線（新幹線/高速道路）通電…");
+  const oldPathDs=[];
+  for(const pair of oldPairs){
+    const cells=aStar([pair[0][2],pair[0][3]],[pair[1][2],pair[1][3]],{mtnWeight:4, seaCost:180});
+    if(cells) oldPathDs.push(pathD(cells));
+  }
+  // Expose to outer scope for final comparison
+  window.__oldPathDs = oldPathDs;
+  // Animate stroke-dashoffset for visibility
+  for(const d of oldPathDs){
+    const el=layerOldE.append("path").attr("class","old-net").attr("d",d);
+    const L=el.node().getTotalLength();
+    el.attr("stroke-dasharray",`${L} ${L}`).attr("stroke-dashoffset",L)
+      .transition().duration(900).attr("stroke-dashoffset",0);
+  }
+  // countdown overlay
+  const cd=document.getElementById('cd');
+  for(const n of ['3','2','1']){
+    cd.textContent=n; cd.style.opacity=1; await sleep(330); cd.style.opacity=0; await sleep(60);
+  }
+  cd.textContent="REBOOT"; cd.style.fontSize="68px"; cd.style.opacity=1; await sleep(420);
+
+  /* ===== PHASE 1b: Terminal hack + Glitch & blackout ===== */
+  cd.style.opacity=0;
+  setNarration('全インフラを<span class="red">ゼロリセット</span>…');
+  await runTerminal();
+  const glitch=document.getElementById('glitch');
+  glitch.style.transition="opacity 200ms"; glitch.style.opacity=1;
+  logLine("&gt; SYSTEM RESET // 47都道府県の接続を一旦リセット","bad");
+  logLine("&gt; 全インフラ消去 — 標高と地形データのみ保持","bad");
+  document.getElementById('stage').animate(
+    [{transform:'translate(0,0)'},{transform:'translate(-6px,4px)'},{transform:'translate(6px,-4px)'},{transform:'translate(0,0)'}],
+    {duration:480,iterations:2}
+  );
+  await sleep(450);
+  const blackout=document.getElementById('blackout');
+  blackout.style.transition="opacity 300ms"; blackout.style.opacity=1;
+  layerOldE.selectAll("*").remove();
+  layerOldC.selectAll("*").remove();
+  layerLand.selectAll("*").remove();
+  await sleep(450);
+  drawLand(layerLand,"land-new");
+  glitch.style.opacity=0; blackout.style.opacity=0;
+
+  document.getElementById('title').style.transition="opacity 350ms";
+  document.getElementById('subtitle').style.transition="opacity 350ms";
+  document.getElementById('title').style.opacity=1;
+  document.getElementById('subtitle').style.opacity=1;
+  logLine("&gt; TERRAIN-ONLY MODE: ゼロから最適配置を再計算開始");
+  logLine("&gt; 47県の県庁所在地を首都候補として走査…");
+  await sleep(1100);
+  document.getElementById('title').style.opacity=0;
+  document.getElementById('subtitle').style.opacity=0;
+
+  /* ===== PHASE 2: Capital selection from 47 prefs ===== */
+  setPhase("PHASE 2 // CAPITAL SCAN (47 PREF)");
+  setNarration('47県の<span class="em">県庁所在地</span>から新首都候補をスキャン中…');
+
+  // Centroid of Japan land for centrality scoring
+  const CENTER=[137.7, 37.3];
+  function distFromCoastLL(ll){
+    // approximate inland distance using grid: BFS distance to nearest sea cell
+    const [i,j]=llToCell(ll);
+    let best=GW+GH;
+    for(let dj=-12;dj<=12;dj++)for(let di=-12;di<=12;di++){
+      const ni=i+di,nj=j+dj; if(ni<0||nj<0||ni>=GW||nj>=GH) continue;
+      if(!grid[gidx(ni,nj)].land){const d=Math.hypot(di,dj); if(d<best)best=d;}
+    }
+    return best; // cell units
+  }
+  // Score each pref
+  const scored=PREFS.map(p=>{
+    const lng=p[2],lat=p[3];
+    const sei=seismicAt(lng,lat);
+    // tsunami: high near pacific coast & low elevation
+    const tsu = Math.max(0, 1 - distFromCoastLL([lng,lat])/8) * (sei*0.6+0.4);
+    const elev=elevation(lng,lat);
+    const central=1 - Math.min(1, Math.hypot(lng-CENTER[0],(lat-CENTER[1])*1.2)/8);
+    const inlandScore = Math.min(1, distFromCoastLL([lng,lat])/10);
+    const eastBias = Math.max(0, Math.min(1, (lng - 132) / 9));
+    const defense = inlandScore*0.5 + eastBias*0.5;
+    const elevScore = elev < 0.45
+      ? 1 - Math.min(1, Math.abs(elev-0.10)/0.45)
+      : Math.max(0, 0.4 - (elev-0.45)*1.2);
+    // Climate: temperature + snow penalty (heavy snow belt = Hokuriku/Tohoku-W/Hokkaido-W)
+    const tempBand = Math.exp(-Math.pow((lat-35.5)/5.5,2));
+    let snowfall = 0;
+    if(lat>=41) snowfall += (lat-41)*0.40;
+    if(lng<=139 && lat>=35)
+      snowfall += Math.max(0,(139-lng)/4) * Math.max(0,(lat-34)/4);
+    snowfall += elev*0.50 * Math.max(0,(lat-33)/8);
+    snowfall = Math.min(1.5, snowfall);
+    const climate = tempBand * Math.max(0, 1 - snowfall*1.5);
+    const total = (
+      (1-sei)*0.22 + (1-tsu)*0.15 + elevScore*0.15 + central*0.13 + defense*0.15 + climate*0.20
+    );
+    return {pref:p, name:p[0], jp:p[1], lng, lat, sei, tsu, elev, central, defense, elevScore, climate, total};
+  });
+  scored.sort((a,b)=>b.total-a.total);
+
+  // Draw all candidates faintly
+  for(const c of scored){
+    const p=projection([c.lng,c.lat]);
+    layerCand.append("circle").attr("class","candidate").attr("cx",p[0]).attr("cy",p[1]).attr("r",0)
+      .attr("opacity",0).transition().duration(400).attr("r",4.5).attr("opacity",.85);
+  }
+  await sleep(450);
+
+  // Sweep scan crosshair through all 47, coloring by score
+  const cross=layerScan.append("g");
+  cross.append("line").attr("class","crosshair").attr("x1",0).attr("x2",W).attr("y1",0).attr("y2",0);
+  cross.append("line").attr("class","crosshair").attr("x1",0).attr("x2",0).attr("y1",0).attr("y2",H);
+
+  // For brevity in scan animation, iterate scored in geographic order (north→south)
+  const scanOrder=[...scored].sort((a,b)=>b.lat-a.lat);
+  for(let k=0;k<scanOrder.length;k++){
+    const c=scanOrder[k];
+    const p=projection([c.lng,c.lat]); if(!p) continue;
+    cross.select("line:nth-child(1)").attr("y1",p[1]).attr("y2",p[1]);
+    cross.select("line:nth-child(2)").attr("x1",p[0]).attr("x2",p[0]);
+    const cls = c.total>0.62 ? "cand-score-good" : (c.total<0.45?"cand-score-bad":"candidate");
+    layerScan.append("circle").attr("class",cls).attr("cx",p[0]).attr("cy",p[1]).attr("r",10)
+      .attr("opacity",1)
+      .transition().duration(700).attr("r", c.total>0.62?5.5:3).attr("opacity",.9);
+    // Scan ping ring
+    layerScan.append("circle").attr("cx",p[0]).attr("cy",p[1]).attr("r",4)
+      .attr("fill","none").attr("stroke","#fff").attr("stroke-width",1)
+      .attr("filter","url(#glowMid)").attr("opacity",.9)
+      .transition().duration(600).attr("r",16).attr("opacity",0).attr("stroke-width",0).remove();
+    if(c.total<0.45){
+      logLine(`× ${c.jp} 棄却: 地震${(c.sei*100|0)} 津波${(c.tsu*100|0)} 高すぎ/沿岸`,"bad");
+    } else if(c.total>0.62){
+      logLine(`◎ ${c.jp} 有力候補: 内陸かつ低リスク (${(c.total*100|0)}点)`,"ok");
+    }
+    await sleep(70);
+  }
+  cross.remove();
+
+  // Decision matrix: top 5 candidates + worst 2 (Tokyo/Naha-like)
+  const panel=document.getElementById('scorePanel');
+  const tbl=document.getElementById('scoreTable');
+  const top5=scored.slice(0,5);
+  // Always include Tokyo for comparison reference
+  const tokyo=scored.find(c=>c.name==="Tokyo");
+  const bot=scored.slice(-1);
+  const matrixRows=[...top5];
+  if(!matrixRows.find(c=>c.name==="Tokyo")) matrixRows.push(tokyo);
+  matrixRows.push(...bot);
+
+  function fmt(v){return ((v*100)|0).toString().padStart(2,' ');}
+  function cls(v){return v>=0.65?'hi':v<=0.35?'lo':'';}
+  let html = `<tr>
+    <th class="l">候補</th>
+    <th>地震</th><th>津波</th><th>標高</th><th>気候</th><th>中央</th><th>防衛</th>
+    <th>TOTAL</th></tr>`;
+  for(let i=0;i<matrixRows.length;i++){
+    const c=matrixRows[i];
+    const isTop=(i===0);
+    const isWorst=(i===matrixRows.length-1);
+    const v_sei=1-c.sei, v_tsu=1-c.tsu, v_elev=c.elevScore, v_cli=c.climate, v_cen=c.central, v_def=c.defense;
+    html += `<tr class="${isTop?'top':''}">
+      <td class="l">${c.jp}</td>
+      <td class="${cls(v_sei)}">${fmt(v_sei)}</td>
+      <td class="${cls(v_tsu)}">${fmt(v_tsu)}</td>
+      <td class="${cls(v_elev)}">${fmt(v_elev)}</td>
+      <td class="${cls(v_cli)}">${fmt(v_cli)}</td>
+      <td class="${cls(v_cen)}">${fmt(v_cen)}</td>
+      <td class="${cls(v_def)}">${fmt(v_def)}</td>
+      <td class="${isTop?'hi':isWorst?'lo':''}"><b>${fmt(c.total)}</b></td>
+    </tr>`;
+  }
+  tbl.innerHTML=html;
+  panel.style.transition="opacity 300ms"; panel.style.opacity=1;
+  setNarration('6指標で全47県を評価 — 比較マトリクス表示');
+  logLine(`&gt; 比較表: 5指標で全47県を評価`,"em");
+  await sleep(1200);
+  logLine(`&gt; ${top5[0].jp} が総合TOP (${(top5[0].total*100)|0}点)`,"em");
+  await sleep(900);
+  // Per-axis why
+  const why=[];
+  if(top5[0].sei<0.4) why.push("地震低");
+  if(top5[0].tsu<0.4) why.push("津波低");
+  if(top5[0].elevScore>0.6) why.push("適正標高");
+  if(top5[0].climate>0.6) why.push("温暖+少雪");
+  if(top5[0].central>0.5) why.push("中央");
+  if(top5[0].defense>0.55) why.push("内陸+東寄り");
+  logLine(`&gt; 採用理由: ${why.join(" / ")||"バランス型"}`,"em");
+  await sleep(2000);
+  panel.style.opacity=0;
+
+  // Winner
+  const capital=top5[0];
+  const capP=projection([capital.lng,capital.lat]);
+  // Pulsing capital
+  const capG=layerCities.append("g");
+  capG.append("circle").attr("cx",capP[0]).attr("cy",capP[1]).attr("r",0)
+    .attr("fill","url(#capitalGlow)").transition().duration(700).attr("r",22);
+  capG.append("circle").attr("class","capital").attr("cx",capP[0]).attr("cy",capP[1]).attr("r",0)
+    .transition().duration(500).attr("r",5);
+  shakeStage(5, 320);
+  setTimeout(()=>cityBurst(capP[0],capP[1],"#ffcc00",16,1.7),200);
+  setTimeout(()=>cityBurst(capP[0],capP[1],"#fff",10,1.3),550);
+  // Fade away the other prefectural candidate markers
+  layerCand.selectAll("circle").transition().duration(900).attr("opacity",0).remove();
+  layerScan.selectAll("circle").transition().duration(900).attr("opacity",0).remove();
+  setNarration(`新首都を <span class="grn">${capital.jp}</span> に決定`);
+  // Capital label moved to top-left fixed badge (avoid overlap with map)
+  const capLabel=document.getElementById('capitalBadge');
+  capLabel.innerHTML=`◆ 新首都<br><b>${capital.jp}</b>`;
+  capLabel.style.transition="opacity 300ms";
+  capLabel.style.opacity=1;
+  setCities(++cityCount);
+
+  // Reason panel
+  document.getElementById('reasonName').textContent = `◆ ${capital.jp} (${capital.name}) NEW CAPITAL`;
+  document.getElementById('rSei').textContent = `${((1-capital.sei)*100)|0}/100`;
+  document.getElementById('rTsu').textContent = `${((1-capital.tsu)*100)|0}/100`;
+  document.getElementById('rElev').textContent = `${(capital.elevScore*100)|0}/100`;
+  document.getElementById('rCen').textContent = `${(capital.central*100)|0}/100`;
+  document.getElementById('rDef').textContent = `${(capital.defense*100)|0}/100`;
+  document.getElementById('rTot').textContent = `${(capital.total*100)|0}/100`;
+  const reason=document.getElementById('reason');
+  reason.style.transition="opacity 300ms"; reason.style.opacity=1;
+  logLine(`&gt; 新首都決定: ${capital.jp}`,"ok");
+  logLine(`&gt; ここから日本全土へ最短地形ルートで網を張る`,"ok");
+  await tween(setCost,0,4.2,700);
+  await sleep(2200);
+  reason.style.opacity=0;
+  await sleep(200);
+
+  /* ===== PHASE 3: Network growth using A* terrain routing ===== */
+  setPhase("PHASE 3 // GENESIS GROW");
+  setNarration('居住適性マップを生成 — <span class="grn">緑=高</span> <span class="em">黄=中</span> <span class="red">赤=山岳</span>');
+  document.getElementById('legend').style.transition="opacity 300ms";
+  document.getElementById('legend').style.opacity=1;
+
+  // === Habitability map (per land cell) ===
+  logLine(`&gt; 居住適性マップ生成: 平地/気候帯/沿岸距離/低地震`,"em");
+  const hab=new Float32Array(GW*GH);
+  for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){
+    const idx=gidx(i,j); const c=grid[idx];
+    if(!c.land){hab[idx]=0;continue;}
+    let inland=12;
+    for(let dj=-6;dj<=6;dj++)for(let di=-6;di<=6;di++){
+      const ni=i+di,nj=j+dj; if(ni<0||nj<0||ni>=GW||nj>=GH) continue;
+      if(!grid[gidx(ni,nj)].land){const d=Math.hypot(di,dj); if(d<inland)inland=d;}
+    }
+    const flat=1-Math.min(1,c.elev/0.45);
+    const tempBand=Math.exp(-Math.pow((c.lat-35.5)/5.5,2));
+    // Snowfall heuristic (calibrated to real annual snowfall)
+    let snowfall = 0;
+    if(c.lat>=41) snowfall += (c.lat-41)*0.40;                         // Hokkaido base
+    if(c.lng<=139 && c.lat>=35)
+      snowfall += Math.max(0,(139-c.lng)/4) * Math.max(0,(c.lat-34)/4); // Japan-Sea side
+    snowfall += c.elev*0.50 * Math.max(0,(c.lat-33)/8);                // mountain amplification
+    snowfall = Math.min(1.5, snowfall);
+    const climate = tempBand * Math.max(0, 1 - snowfall*1.5);
+    const coastAccess=Math.max(0,1-Math.abs(inland-3)/4);
+    const safety=1-c.seismic;
+    let landNeighbors=0;
+    for(let dj=-12;dj<=12;dj++)for(let di=-12;di<=12;di++){
+      const ni=i+di,nj=j+dj; if(ni<0||nj<0||ni>=GW||nj>=GH) continue;
+      if(grid[gidx(ni,nj)].land) landNeighbors++;
+    }
+    const landmass=Math.min(1, landNeighbors/350);
+    const massFactor=0.30+0.70*landmass;
+    hab[idx]=(flat*0.25+climate*0.28+coastAccess*0.18+safety*0.29)*massFactor;
+  }
+  // Heatmap canvas — high resolution, projection-accurate via invert lookup tables
+  const HW=480, HH=800;
+  let heatCanvas=document.getElementById('heatCanvas');
+  if(!heatCanvas){
+    heatCanvas=document.createElement('canvas');
+    heatCanvas.id='heatCanvas';
+    heatCanvas.style.cssText='position:absolute;pointer-events:none;mix-blend-mode:screen;z-index:2;opacity:0;transition:opacity 800ms;filter:blur(2.2px)';
+    document.getElementById('mapZoom').appendChild(heatCanvas);
+  }
+  heatCanvas.width=HW; heatCanvas.height=HH;
+  const tlxy=projection([bbox[0][0],bbox[1][1]]);
+  const brxy=projection([bbox[1][0],bbox[0][1]]);
+  heatCanvas.style.left=tlxy[0]+'px';
+  heatCanvas.style.top=tlxy[1]+'px';
+  heatCanvas.style.width=(brxy[0]-tlxy[0])+'px';
+  heatCanvas.style.height=(brxy[1]-tlxy[1])+'px';
+  const hctx=heatCanvas.getContext('2d');
+  const himg=hctx.createImageData(HW,HH);
+  const scaleX=(brxy[0]-tlxy[0])/HW, scaleY=(brxy[1]-tlxy[1])/HH;
+  // Lookup tables: per-row lat (Mercator non-linear), per-col lng (linear)
+  const latLUT=new Float64Array(HH), lngLUT=new Float64Array(HW);
+  for(let j=0;j<HH;j++){
+    const inv=projection.invert([tlxy[0], tlxy[1]+(j+0.5)*scaleY]);
+    latLUT[j]=inv?inv[1]:0;
+  }
+  for(let i=0;i<HW;i++){
+    const inv=projection.invert([tlxy[0]+(i+0.5)*scaleX, tlxy[1]]);
+    lngLUT[i]=inv?inv[0]:0;
+  }
+  for(let j=0;j<HH;j++){
+    const lat = latLUT[j];
+    const gj = Math.min(GH-1, Math.max(0, Math.floor((bbox[1][1]-lat)/cellDyLL)));
+    for(let i=0;i<HW;i++){
+      const lng = lngLUT[i];
+      const gi = Math.min(GW-1, Math.max(0, Math.floor((lng-bbox[0][0])/cellDxLL)));
+      const off=(j*HW+i)*4;
+      const isLand = grid[gidx(gi,gj)].land;
+      if(!isLand){ continue; }
+      const elev = elevation(lng,lat);
+      const sei = seismicAt(lng,lat);
+      let r=0,g=0,b=0,a=0;
+      if(elev >= 0.30){
+        const it = Math.min(1, (elev-0.25)/0.60);
+        r=255; g=34; b=68; a=200*it;
+      } else {
+        const flat = 1 - Math.min(1, elev/0.45);
+        const tempBand = Math.exp(-((lat-36)/9)*((lat-36)/9));
+        const safety = 1 - sei;
+        const habApprox = flat*0.40 + tempBand*0.25 + safety*0.35;
+        if(habApprox >= 0.55){
+          const it = Math.min(1, (habApprox-0.45)/0.45);
+          if(it > 0.55){ r=57;  g=255; b=136; a=200*it; }
+          else         { r=255; g=204; b=0;   a=180*it; }
+        }
+      }
+      himg.data[off]=r; himg.data[off+1]=g; himg.data[off+2]=b; himg.data[off+3]=a;
+    }
+  }
+  hctx.putImageData(himg,0,0);
+  requestAnimationFrame(()=>{heatCanvas.style.opacity=0.7;});
+  const habBadge=document.getElementById('habBadge');
+  habBadge.style.transition="opacity 300ms";
+  habBadge.style.opacity=1;
+  await sleep(1500);
+  logLine(`&gt; 緑=高適性 黄=中適性 赤=山岳(経路困難)`,"em");
+  await sleep(900);
+  // Dim heatmap canvas to background level (keep as analysis overlay)
+  heatCanvas.style.opacity=0.35;
+
+  // === Network distance field (BFS, 8-neighbor) ===
+  const distNet=new Float32Array(GW*GH);
+  for(let i=0;i<distNet.length;i++) distNet[i]=Infinity;
+  function bfsExpand(srcs){
+    const q=[]; let h=0;
+    for(const s of srcs){ if(distNet[s]>0){distNet[s]=0; q.push(s);} }
+    while(h<q.length){
+      const cur=q[h++]; const ci=cur%GW, cj=Math.floor(cur/GW); const d=distNet[cur];
+      for(let dj=-1;dj<=1;dj++)for(let di=-1;di<=1;di++){
+        if(!di&&!dj) continue;
+        const ni=ci+di,nj=cj+dj; if(ni<0||nj<0||ni>=GW||nj>=GH) continue;
+        const nidx=gidx(ni,nj); const nd=d+Math.hypot(di,dj);
+        if(nd<distNet[nidx]){ distNet[nidx]=nd; q.push(nidx); }
+      }
+    }
+  }
+  const [capI,capJ]=llToCell([capital.lng,capital.lat]);
+  const capitalCellIdx=gidx(capI,capJ);
+  bfsExpand([capitalCellIdx]);
+
+  let cityNum=1;
+  let totalCost=4.2;
+  // Helper: nearest pref (real municipality) for a lat/lng
+  function nearestPref(lng,lat){
+    let best=null,bd=Infinity;
+    for(const p of MUNI){
+      const d=Math.hypot(p[2]-lng,(p[3]-lat)*1.2);
+      if(d<bd){bd=d;best=p;}
+    }
+    return best;
+  }
+  const capNearest=nearestPref(capital.lng,capital.lat);
+  const cityNodes=[{
+    cellIdx:capitalCellIdx,lng:capital.lng,lat:capital.lat,
+    name:capital.jp,jp:capital.jp,
+    tier:0, hab:capital.total||0.9, isDetour:false,
+    nearest: capNearest?capNearest[1]:"-"
+  }];
+
+  function regionOfLatLng(lng,lat){
+    if(lat>=41) return "[北日本]";
+    if(lat>=36.5) return "[東日本]";
+    if(lat<28) return "[南方離島]";
+    if(lng<134) return "[西日本]";
+    return "[中央]";
+  }
+  let lastRegion=null;
+  logLine(`&gt; 新首都${capital.jp}を起点に交通網を発芽`,"em");
+  setNarration(`<span class="em">${capital.jp}</span>から地形に沿って交通網を伸長`);
+  await sleep(400);
+
+  // === Population estimator (shared by popup label and summary table) ===
+  function popEstimate(node){
+    if(node.tier===0) return 4_000_000;
+    if(node.isDetour) return Math.round(80_000 + node.hab*200_000);
+    if(node.tier===1) return Math.round(900_000 + node.hab*2_400_000);
+    if(node.tier===2) return Math.round(300_000 + node.hab*900_000);
+    return Math.round(120_000 + node.hab*250_000);
+  }
+
+  // === City role classifier ===
+  // Designate ONE inland-east tier-1/2 city as 防衛要衝 (track via closure)
+  let defenseHubAssigned = false;
+  function cityRole(node){
+    if(node.tier===0) return "首都";
+    if(node.isDetour) return "山岳バイパス都市";
+    const [ci,cj]=llToCell([node.lng,node.lat]);
+    let inland=0;
+    for(let dj=-6;dj<=6;dj++)for(let di=-6;di<=6;di++){
+      const ni=ci+di,nj=cj+dj; if(ni<0||nj<0||ni>=GW||nj>=GH) continue;
+      if(!grid[gidx(ni,nj)].land){const d=Math.hypot(di,dj); inland = inland===0?d:Math.min(inland,d);}
+    }
+    if(inland===0) inland=8;
+    const isInland = inland >= 4;
+    const isEast   = node.lng >= 138.5;
+    const isMajor  = node.tier <= 2;
+    if(!defenseHubAssigned && isMajor && isInland && isEast){
+      defenseHubAssigned = true;
+      return node.tier===1 ? "主要都市・防衛要衝" : "地方中核・防衛要衝";
+    }
+    if(node.lat >= 41) return node.tier<=2 ? "北方主要拠点" : "北方地方都市";
+    if(node.lat < 28)  return "離島拠点";
+    // Industry hints by geography
+    if(isInland && node.tier<=2) return "農業・物流拠点";
+    if(!isInland && node.tier<=2) return "沿岸産業拠点";
+    if(node.tier===1) return "主要都市";
+    if(node.tier===2) return "地方中核";
+    return "地方都市";
+  }
+
+  // === Iterative organic growth ===
+  for(let iter=0;iter<14;iter++){
+    let bestIdx=-1,bestScore=0;
+    for(let idx=0;idx<GW*GH;idx++){
+      if(hab[idx]<0.35) continue;
+      const d=distNet[idx];
+      if(d<7||!isFinite(d)) continue;
+      const score=hab[idx]*Math.sqrt(d)*Math.exp(-d/55);
+      if(score>bestScore){bestScore=score; bestIdx=idx;}
+    }
+    if(bestIdx<0) break;
+    const tgt=grid[bestIdx];
+    const ti=bestIdx%GW, tj=Math.floor(bestIdx/GW);
+
+    // Nearest connected node
+    let nearNode=cityNodes[0], nearD=Infinity;
+    for(const cn of cityNodes){
+      const ci=cn.cellIdx%GW, cj=Math.floor(cn.cellIdx/GW);
+      const d=Math.hypot(ti-ci,tj-cj); if(d<nearD){nearD=d; nearNode=cn;}
+    }
+
+    const region=regionOfLatLng(tgt.lng,tgt.lat);
+    if(region!==lastRegion){ logLine(`&gt; ${region} へ展開`,"em"); lastRegion=region; await sleep(200); }
+    const tgtNear=nearestPref(tgt.lng,tgt.lat);
+    setNarration(`${region.replace(/[\[\]]/g,'')}方面 — <span class="em">${tgtNear?tgtNear[1]:'-'}近郊</span>に新都市候補`);
+
+    // === Visualize the candidate before routing ===
+    const tgtXY=projection([tgt.lng,tgt.lat]);
+    const fromXY=projection([nearNode.lng,nearNode.lat]);
+    const probe=layerHi.append("g");
+    // Expanding pulse rings on candidate
+    for(let r=0;r<2;r++){
+      probe.append("circle").attr("class","target-pulse")
+        .attr("cx",tgtXY[0]).attr("cy",tgtXY[1]).attr("r",4)
+        .attr("opacity",0.9)
+        .transition().delay(r*250).duration(700)
+        .attr("r",18).attr("opacity",0).remove();
+    }
+    // Stationary crosshair
+    const ch=probe.append("g");
+    ch.append("circle").attr("cx",tgtXY[0]).attr("cy",tgtXY[1]).attr("r",6)
+      .attr("fill","none").attr("stroke","#fff").attr("stroke-width",1).attr("filter","url(#glowMid)");
+    ch.append("line").attr("x1",tgtXY[0]-12).attr("x2",tgtXY[0]+12).attr("y1",tgtXY[1]).attr("y2",tgtXY[1])
+      .attr("stroke","#fff").attr("stroke-width",.7).attr("opacity",.7);
+    ch.append("line").attr("x1",tgtXY[0]).attr("x2",tgtXY[0]).attr("y1",tgtXY[1]-12).attr("y2",tgtXY[1]+12)
+      .attr("stroke","#fff").attr("stroke-width",.7).attr("opacity",.7);
+    // Dashed line from origin to candidate to show "considering this connection"
+    const considerLine=probe.append("line")
+      .attr("x1",fromXY[0]).attr("y1",fromXY[1])
+      .attr("x2",fromXY[0]).attr("y2",fromXY[1])
+      .attr("stroke","#fff").attr("stroke-width",.8)
+      .attr("stroke-dasharray","3 3").attr("opacity",.7)
+      .attr("filter","url(#glowSoft)");
+    considerLine.transition().duration(450).attr("x2",tgtXY[0]).attr("y2",tgtXY[1]);
+
+    logLine(`&gt; 次候補を検討: ${region} 緯${tgt.lat.toFixed(1)} 経${tgt.lng.toFixed(1)} 適性${(hab[bestIdx]*100)|0}`,"em");
+    await sleep(400);
+    ch.transition().duration(300).attr("opacity",0).remove();
+    considerLine.transition().duration(300).attr("opacity",0).remove();
+
+    // === Zoom to source→target region ===
+    const cx=(fromXY[0]+tgtXY[0])/2;
+    const cy=(fromXY[1]+tgtXY[1])/2;
+    const span=Math.max(160, Math.hypot(tgtXY[0]-fromXY[0], tgtXY[1]-fromXY[1]) + 120);
+    const zScale=Math.min(2.6, Math.max(1.4, Math.min(W,H)/span));
+    setZoom(cx,cy,zScale,500);
+    await sleep(420);
+    // For island targets, allow sea routing with reduced cost
+    const tgtLand = grid[bestIdx].land;
+    let seaCostInit=220;
+    // Test island connectivity: if target is on isolated landmass, allow sea
+    // Always allow with high cost; if the resulting path has sea cells we tag it
+    const cells=aStar([nearNode.lng,nearNode.lat],[tgt.lng,tgt.lat],{mtnWeight:8, seaCost:80});
+    if(!cells){ continue; }
+    let maxElev=0, maxK=-1, seaCount=0;
+    for(let k=0;k<cells.length;k++){
+      if(cells[k].elev>maxElev){maxElev=cells[k].elev; maxK=k;}
+      if(!cells[k].land) seaCount++;
+    }
+    const tunnel = maxElev>0.55 && seaCount<2;
+    const isAir = seaCount > 25;
+    const isMarine = !isAir && seaCount >= 2;
+    const cls = tunnel ? "edge-detour" : (isAir ? "edge-air" : (isMarine ? "edge-marine" : "edge"));
+
+    if(tunnel){
+      const tunnelCostB=(300+maxElev*900)|0;
+      const detourCostB=(tunnelCostB-150-((Math.random()*120)|0))|0;
+      const elevM=(maxElev*1800)|0;
+      document.getElementById('dTunnel').textContent=tunnelCostB;
+      document.getElementById('dCity').textContent=detourCostB;
+      document.getElementById('dCtx').textContent=`区間: ${nearNode.jp} → 新拠点 / 山岳 約${elevM}m`;
+      document.getElementById('dPick').innerHTML=`▶ 案B採用 (¥${tunnelCostB-detourCostB}B 節約 + 新都市創発)`;
+      const dil=document.getElementById('dilemma');
+      dil.style.transition="opacity 200ms"; dil.style.opacity=1;
+      logLine(`⚠ ${nearNode.jp}方面に標高${elevM}m級の山岳`,"em");
+      await sleep(1400); dil.style.opacity=0;
+      // Bend city
+      let bendK=maxK;
+      for(let k=maxK;k>0;k--){if(cells[k].elev<0.4){bendK=k; break;}}
+      const bend=cells[bendK];
+      const [bi,bj]=llToCell([bend.lng,bend.lat]);
+      cityNum++;
+      const bNearest=nearestPref(bend.lng,bend.lat);
+      cityNodes.push({
+        cellIdx:gidx(bi,bj),lng:bend.lng,lat:bend.lat,name:`C-${cityNum}`,jp:`新都市${cityNum}`,
+        tier:3, hab:hab[gidx(bi,bj)]||0, isDetour:true,
+        nearest: bNearest?bNearest[1]:"-"
+      });
+      const bp=projection([bend.lng,bend.lat]);
+      layerCities.append("circle").attr("class","city-2nd")
+        .attr("cx",bp[0]).attr("cy",bp[1]).attr("r",0)
+        .transition().delay(400).duration(400).attr("r",3);
+      setTimeout(()=>cityBurst(bp[0],bp[1],"#ff2bd1",8,0.8), 400);
+      setCities(++cityCount);
+      totalCost += nearD*0.013 + detourCostB*0.001;
+    } else if(isAir){
+      totalCost += nearD*0.008 + seaCount*0.25;  // air: low infra cost per cell
+      logLine(`&gt; 空路敷設: 海越え${seaCount}セル → 拠点に空港`,"em");
+    } else if(isMarine){
+      totalCost += nearD*0.014 + seaCount*0.40;  // bridge/ferry heavy
+      logLine(`&gt; 海路敷設: 海越え${seaCount}セル (橋梁/フェリー)`,"em");
+    } else {
+      totalCost += nearD*0.012 + maxElev*1.5;
+    }
+
+    const pd=pathD(cells);
+    recordEdgePath(pd);
+    const el=layerEdges.append("path").attr("class",cls).attr("d",pd);
+    const L=el.node().getTotalLength();
+    el.attr("stroke-dasharray",`${L} ${L}`).attr("stroke-dashoffset",L)
+      .transition().duration(800).attr("stroke-dashoffset",0);
+
+    cityNum++;
+    const habVal=hab[bestIdx];
+    // Tier by hab score
+    let tier;
+    if(habVal>=0.75) tier=1;
+    else if(habVal>=0.55) tier=2;
+    else tier=3;
+    const sizes={1:6.5, 2:4.5, 3:3};
+    const tNearest=nearestPref(tgt.lng,tgt.lat);
+    cityNodes.push({
+      cellIdx:bestIdx,lng:tgt.lng,lat:tgt.lat,name:`C-${cityNum}`,jp:`新都市${cityNum}`,
+      tier, hab:habVal, isDetour:false,
+      nearest: tNearest?tNearest[1]:"-"
+    });
+    const p2=projection([tgt.lng,tgt.lat]);
+    layerCities.append("circle").attr("class",`city tier${tier}`).attr("cx",p2[0]).attr("cy",p2[1]).attr("r",0)
+      .transition().delay(400).duration(400).attr("r",sizes[tier]);
+    const burstColor=tier===1?"#fff":(tier===2?"#00d4ff":"#5fa8c4");
+    const burstScale=tier===1?1.3:(tier===2?1.0:0.75);
+    setTimeout(()=>cityBurst(p2[0],p2[1],burstColor,12,burstScale), 400);
+    setCities(++cityCount);
+
+    // Floating label near the new city — stroke-outline text (auto-sizing, no clipping)
+    const labelG=layerHi.append("g").attr("class","city-tag");
+    const role=cityRole(cityNodes[cityNodes.length-1]);
+    const ltx=p2[0]+8, lty=p2[1]-6;
+    const line1=`${tNearest?tNearest[1]:'-'} 近郊`;
+    const line2=role;
+    function addStrokedText(x,y,txt,sz,fill){
+      labelG.append("text").attr("x",x).attr("y",y).attr("font-size",sz)
+        .attr("fill",fill).attr("stroke","#000").attr("stroke-width",sz*0.35)
+        .attr("paint-order","stroke fill").attr("stroke-linejoin","round")
+        .attr("style","font-family:'Courier New',monospace;letter-spacing:.05em;font-weight:bold")
+        .text(txt).attr("opacity",0).transition().duration(280).attr("opacity",1);
+    }
+    const popNum=popEstimate(cityNodes[cityNodes.length-1]);
+    const popStr=`人口 ${(popNum/10000|0).toLocaleString()}万人`;
+    addStrokedText(ltx, lty,    line1, 10, "#fff");
+    addStrokedText(ltx, lty+11, line2, 9,  "#ffcc00");
+    addStrokedText(ltx, lty+22, popStr, 9, "#7ce7ff");
+
+    // Update network distance field with path cells
+    const pathIdxs=[];
+    for(const cell of cells){
+      const [pi,pj]=llToCell([cell.lng,cell.lat]);
+      pathIdxs.push(gidx(pi,pj));
+    }
+    bfsExpand(pathIdxs);
+
+    logLine(`+ 新都市${cityNum} 創発: ${region} ≈ ${tNearest?tNearest[1]:'-'}近郊`,"ok");
+    await tween(setCost,costVal,totalCost,200);
+    await tween(setEff,effVal,Math.min(98, 20+cityCount*4.5),200);
+    await tween(setRisk, parseFloat(sRisk.textContent||"78"), Math.max(15, 78-cityCount*3.5), 200);
+    await sleep(550);
+
+    // Fade city label and zoom back to full map
+    labelG.transition().duration(350).attr("opacity",0).remove();
+    resetZoom(500);
+    await sleep(480);
+  }
+  logLine(`&gt; ${cityNum}拠点を創発 — 主要間をリング冗長化`,"em");
+  await sleep(300);
+
+  // Ring redundancy — only short same-region pairs (avoid sea crossings)
+  const ringPairs=[];
+  for(let i=0;i<cityNodes.length;i++){
+    for(let j=i+1;j<cityNodes.length;j++){
+      const a=cityNodes[i], b=cityNodes[j];
+      if(regionOfLatLng(a.lng,a.lat)!==regionOfLatLng(b.lng,b.lat)) continue;
+      const d=Math.hypot(a.lng-b.lng,(a.lat-b.lat)*1.2);
+      if(d<2.0) ringPairs.push([a,b,d]);
+    }
+  }
+  ringPairs.sort((x,y)=>x[2]-y[2]);
+  for(const [a,b] of ringPairs.slice(0,5)){
+    const cells=aStar([a.lng,a.lat],[b.lng,b.lat],{mtnWeight:8, seaCost:400});
+    if(!cells) continue;
+    // Reject if path includes any sea cell (purely land redundancy)
+    if(cells.some(c=>!c.land)) continue;
+    const el=layerEdges.append("path").attr("class","edge").attr("opacity",.65).attr("d",pathD(cells));
+    const L=el.node().getTotalLength();
+    el.attr("stroke-dasharray",`${L} ${L}`).attr("stroke-dashoffset",L)
+      .transition().duration(600).attr("stroke-dashoffset",0);
+    logLine(`&gt; 冗長化: ${a.jp}↔${b.jp}`);
+    await sleep(180);
+  }
+
+  /* ===== PHASE 4: Completion ===== */
+  setPhase("PHASE 4 // OPTIMIZED JAPAN");
+  setNarration('最適化完了 — <span class="grn">合理的な日本</span> が完成');
+  shakeStage(8, 500);
+  // Finale: flow pulses cascade through all main edges (staggered)
+  for(let i=0;i<mainEdgePaths.length;i++){
+    setTimeout(()=>flowPulse(mainEdgePaths[i], "#00d4ff", 1800, 3), i*70);
+  }
+  // Repeat a second wave with yellow for extra dynamism
+  setTimeout(()=>{
+    for(let i=0;i<mainEdgePaths.length;i++){
+      setTimeout(()=>flowPulse(mainEdgePaths[i], "#ffcc00", 1600, 2.4), i*60);
+    }
+  }, 1400);
+  await tween(setEff, effVal, 99, 700);
+  await tween(setRisk, parseFloat(sRisk.textContent), 12, 700);
+  logLine("> NETWORK CONVERGED  EFF 99%  RISK 12","ok");
+  await sleep(700);
+
+  // Overlay: old (Tokyo-centric) network re-drawn in amber, using SAVED phase-1 A* paths
+  layerOldE.selectAll("*").remove();
+  for(const d of (window.__oldPathDs||[])){
+    const el=layerOldE.append("path").attr("class","edge-old").attr("d",d);
+    const L=el.node().getTotalLength();
+    el.attr("stroke-dasharray",`6 4 ${L} ${L}`).attr("stroke-dashoffset",L)
+      .transition().duration(900).attr("stroke-dashoffset",0)
+      .on("end",function(){d3.select(this).attr("stroke-dasharray","5 3");});
+  }
+  // Tokyo marker amber
+  const tp2=projection([139.69,35.69]);
+  layerOldC.selectAll("*").remove();
+  layerOldC.append("circle").attr("cx",tp2[0]).attr("cy",tp2[1]).attr("r",0)
+    .attr("fill","#ff8c1a").attr("filter","url(#glowMid)")
+    .transition().duration(500).attr("r",6);
+  logLine("⚠ 比較: 旧・東京一極集中ネット (オレンジ破線)","bad");
+  await sleep(900);
+
+  // === Numeric comparison panel ===
+  document.getElementById('cmpCost').textContent = costVal.toFixed(1)+"兆";
+  const cmp=document.getElementById('compare');
+  cmp.style.transition="opacity 400ms"; cmp.style.opacity=1;
+  setNarration('<span class="em">旧 vs 新</span> — 効率・リスク・集中度を比較');
+  await sleep(4500);
+
+  // Hide compare, show summary table
+  document.getElementById('compare').style.opacity=0;
+  // Build summary table (popEstimate defined earlier)
+  function catLabel(n){
+    const role=cityRole(n);
+    const cls = n.tier===0?'cat-cap'
+              : n.isDetour?'cat-det'
+              : role.includes('防衛')?'cat-1'
+              : n.tier===1?'cat-1'
+              : n.tier===2?'cat-2':'cat-3';
+    return `<span class="${cls}">${role}</span>`;
+  }
+  function noteFor(n){
+    const notes=[];
+    if(n.tier===0){
+      notes.push("プレート境界から最遠の中央内陸");
+      notes.push("政治・意思決定中枢");
+    } else if(n.isDetour){
+      notes.push("山岳トンネル代替で誕生");
+      if(n.hab>0.4) notes.push("林業・観光の副次拠点");
+      else notes.push("交通結節のみの小規模集落");
+    } else {
+      // Climate / geography
+      if(n.lat>=43) notes.push("冷涼気候・酪農と林業の北方拠点");
+      else if(n.lat>=40) notes.push("水資源豊富・寒冷帯穀倉");
+      else if(n.lat<28) notes.push("亜熱帯気候・海洋資源");
+      else if(n.lng<131) notes.push("大陸ゲートウェイ・国際物流");
+      else if(n.lng>141) notes.push("太平洋窓口・海運基幹");
+      // Defense (if assigned, role already shows it; add complementary note)
+      const role=cityRole(n);
+      if(role.includes("防衛")) notes.push("内陸+東経138以東で攻撃距離最大化");
+      // Industry by hab + tier
+      if(n.tier===1 && n.hab>0.78) notes.push("人口100万級メガ都市");
+      else if(n.tier===1) notes.push("広域経済圏の中核");
+      else if(n.tier===2 && n.hab>0.7) notes.push("製造業/物流の地方ハブ");
+      else if(n.tier===3) notes.push("低密度・自然保全と農業を両立");
+      // Hab quality
+      if(n.hab>=0.80) notes.push("生活適性スコア最上位");
+    }
+    return notes.slice(0,2).join("<br>");
+  }
+  let sumHtml=`<colgroup><col class="cat"><col class="city"><col class="pop"><col class="note"></colgroup>
+    <tr><th>カテゴリ</th><th>都市</th><th class="n">推定人口</th><th>特記事項</th></tr>`;
+  for(const n of cityNodes){
+    const rowCls = n.tier===0?'cap':(n.isDetour?'det':`t${n.tier}`);
+    const cityName = n.tier===0 ? `${n.nearest}近郊<small style="opacity:.7"> (首都)</small>` : `${n.nearest}近郊`;
+    sumHtml += `<tr class="${rowCls}">
+      <td class="nowrap">${catLabel(n)}</td>
+      <td class="nowrap">${cityName}</td>
+      <td class="n nowrap">${(popEstimate(n)/10000|0).toLocaleString()}万</td>
+      <td>${noteFor(n)}</td>
+    </tr>`;
+  }
+  document.getElementById('summaryTable').innerHTML=sumHtml;
+  const sumPanel=document.getElementById('summary');
+  sumPanel.style.transition="opacity 500ms"; sumPanel.style.opacity=1;
+  setPhase("PHASE 5 // SUMMARY");
+  setNarration('AIが描いた<span class="em">最適日本</span>の都市一覧');
+  // Let viewer read summary for a few seconds, then overlay CTA centered
+  await sleep(4500);
+  clearNarration();
+  const cta=document.getElementById('cta');
+  cta.style.transition="opacity 500ms";
+  cta.style.opacity=1;
+}
+
+run().catch(e=>{console.error(e); document.getElementById('loading').textContent="ERR: "+e.message;});
+</script>
+</body>
+</html>
