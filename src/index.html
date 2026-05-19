@@ -492,6 +492,23 @@
     <span class="blink">REC ●</span>
   </div>
   <div id="phaseTag">PHASE 0 // BOOT</div>
+
+  <!-- New Stats HUD -->
+  <div id="stats-hud" style="position:absolute; left:14px; bottom:150px; z-index:10; display:flex; gap:20px; opacity:0; transition:opacity 500ms;">
+    <div>
+      <div style="font-size:10px; color:var(--neon); text-shadow:0 0 4px var(--neon);">輸送効率</div>
+      <div id="eff-val" style="font-size:32px; font-weight:900; color:#fff; text-shadow:0 0 12px var(--neon);">20%</div>
+    </div>
+    <div>
+      <div style="font-size:10px; color:var(--neon); text-shadow:0 0 4px var(--neon);">災害リスク</div>
+      <div id="risk-val" style="font-size:32px; font-weight:900; color:var(--danger); text-shadow:0 0 12px var(--danger);">78%</div>
+    </div>
+    <div>
+      <div style="font-size:10px; color:var(--neon); text-shadow:0 0 4px var(--neon);">推定建設費</div>
+      <div id="cost-val" style="font-size:32px; font-weight:900; color:var(--warn); text-shadow:0 0 12px var(--warn);">4.2兆</div>
+    </div>
+  </div>
+
   <div id="capitalBadge"></div>
   <div id="habBadge">
     <h5>◆ 居住適性マップ</h5>
@@ -571,9 +588,10 @@
     <table id="summaryTable"></table>
   </div>
   <div id="cta">
-    <div class="ttl">AIが導き出した<br><b>日本の最適化</b></div>
-    <div class="q">あなたの意見を聞かせてください<small>コメントで議論しましょう</small></div>
+    <div class="ttl">AIが導き出した<br><b>日本の最終形</b></div>
+    <div class="q">この「完璧な日本」に住みたい？<br><b>[ YES ] / [ NO ]</b><small>コメントで理由を教えてください！</small></div>
   </div>
+
   <div id="intro">
     <canvas id="introMatrix" width="540" height="960"></canvas>
     <div id="introScan"></div>
@@ -1289,7 +1307,9 @@ async function run(){
 
   /* ===== PHASE 2: Capital selection from 47 prefs ===== */
   setPhase("PHASE 2 // CAPITAL SCAN (47 PREF)");
-  setNarration('47県の<span class="em">県庁所在地</span>から新首都候補をスキャン中…');
+  setNarration('47県の<span class="em">県庁 所在地</span>から新首都候補をスキャン中…');
+  document.getElementById('stats-hud').style.opacity = 1;
+
 
   // Centroid of Japan land for centrality scoring
   const CENTER=[137.7, 37.3];
@@ -1552,7 +1572,7 @@ async function run(){
         const habApprox = flat*0.40 + tempBand*0.25 + safety*0.35;
         if(habApprox >= 0.55){
           const it = Math.min(1, (habApprox-0.45)/0.45);
-          if(it > 0.55){ r=57;  g=255; b=136; a=200*it; }
+          if(it > 0.55){ r=0;  g=255; b=200; a=220*it; }
           else         { r=255; g=204; b=0;   a=180*it; }
         }
       }
